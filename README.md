@@ -7,8 +7,9 @@ You need to be working on the specific provided model in the following link for 
 
 # Blender problems
 
-I did my testing on Blender 2.92.0
-I also had to manually install pywin32 inside `Blender\2.92\python\lib\site-packages` by copying the following folders to it (obtained from another python install i had):
+I did my testing on Blender 2.92.0, its python version is 3.7.7
+
+I also had to manually install pywin32 inside `Blender\2.92\python\lib\site-packages` by copying the following folders to it (obtained from another python install i had where i executed the `python -m pip install pywin32 --user` command):
 - win32
 - win32com
 - win32comext
