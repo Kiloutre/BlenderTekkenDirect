@@ -1,7 +1,7 @@
 # BlenderTekkenDirect
 
 Preview animations in Tekken 7 live from blender. Eventually will be able to save them.
-You need to be working on the specific provided model in the following link for things to work: https://mega.nz/file/llJRBTrJ#l2A3h5Kfgi3MPoOzC0HowpRvc2yDQp29pk-x8h7nqeo
+You need to be working on the specific provided model in the following link for things to work: https://mega.nz/folder/05pBGLAL#XPHcsgK2tBxT3RLMbZPaFw
 
 ![Pose comparison preview](https://i.imgur.com/5v6e0Xi.jpg)
 
