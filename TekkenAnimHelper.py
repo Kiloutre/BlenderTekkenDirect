@@ -279,12 +279,12 @@ def getAnimFrameFromBones(armature):
     LowerBody2 = bones["Hip"].rotation_euler.y
     LowerBody3 = bones["Hip"].rotation_euler.x - (pi / 2)
     
-    Neck1 = bones["Neck"].rotation_euler.x
+    Neck1 = bones["Neck"].rotation_euler.z * -1
     Neck2 = bones["Neck"].rotation_euler.y
-    Neck3 = bones["Neck"].rotation_euler.z
+    Neck3 = bones["Neck"].rotation_euler.x
     
-    Head1 = bones["Head"].rotation_euler.x + (pi / 2)
-    Head2 = bones["Head"].rotation_euler.z * -1
+    Head1 = bones["Head"].rotation_euler.z + (pi / 2)
+    Head2 = bones["Head"].rotation_euler.x
     Head3 = bones["Head"].rotation_euler.y + (pi / 2)
     
     # --------- SHOULDER ------------
@@ -351,7 +351,7 @@ def getAnimFrameFromBones(armature):
     
     LeftOuterShoulder1 = visualRots["L_Arm"]['x'] - pi / 2
     LeftOuterShoulder2 = visualRots["L_Arm"]['z']
-    LeftOuterShoulder3 = visualRots["L_Arm"]['x'] * -1
+    LeftOuterShoulder3 = visualRots["L_Arm"]['y'] * -1
     
     LeftElbow1 = visualRots["L_ForeArm"]['x']
     LeftElbow2 = visualRots["L_ForeArm"]['y']
