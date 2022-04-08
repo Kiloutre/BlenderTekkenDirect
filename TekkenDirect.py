@@ -1,5 +1,5 @@
 from . Addresses import AddressFile, GameClass
-from . TekkenAnimHelper import TekkenAnimation, getAnimFrameFromBones
+from . TekkenAnimHelper import TekkenAnimation, getAnimFrameFromBones, applyRotationFromAnimdata
 from time import time, sleep
 import bpy
 import pathlib
@@ -7,7 +7,7 @@ import threading
 import struct
 from mathutils import Vector, Euler
 from math import pi
-
+import traceback
 
 class TKDirect: #(Singleton):
     def __init__(self):
@@ -75,8 +75,8 @@ class TKDirect: #(Singleton):
                     elif self.preview: self.previewPlayer()
                     
                     if self.attach_player: self.attachPlayer()
-            except Exception as e:
-                print(e)
+            except Exception:
+                print(traceback.format_exc())
                 self.stop()
                 break
             
@@ -102,7 +102,7 @@ class TKDirect: #(Singleton):
     
     # getPlayerYaw - Blender output
     def getPlayerYaw(self):
-        return pi * 2 + self.T.readInt(self.player + 0x1c0, 2) * (pi * 2 / 65535) #half circle offset
+        return self.T.readInt(self.player + 0x1c0, 2) * (pi * 2 / 65535) - pi / 2#half circle offset
         
     # setPlayerYaw - Expects blender input
     def setPlayerYaw(self, yaw): 
@@ -179,6 +179,30 @@ class TKDirect: #(Singleton):
         
         yaw = self.getPlayerYaw()
         self.setArmatureYaw(yaw)
+        
+        animAddr = self.getPlayerAnimAddr()
+        if animAddr != None and self.T.readInt(animAddr, 1) == 0xC8:
+            frame = self.T.readInt(self.player + self.game_addresses["curr_frame_timer_offset"], 4)
+            frame = min(frame, self.T.readInt(animAddr + 4, 4))
+            type2 = self.T.readInt(animAddr + 2, 1)
+            
+            offset = {
+                0x17: 0x64,
+                0x19: 0x6C,
+                0x1B: 0x74,
+                0x1d: 0x7c,
+                0x1f: 0x80,
+                0x21: 0x8c,
+                0x23: 0x94,
+                0x31: 0xcc 
+            }[self.T.readInt(animAddr + 2, 1)]
+            frame_size = type2 * 0xC
+            field_count = frame_size // 4
+            
+            start_addr = animAddr + offset + frame_size * (frame - 1)
+            floats = [self.readFloat(start_addr + i * 4) for i in range(min(field_count, 69))]
+            applyRotationFromAnimdata(self.armature, floats)
+        
     
     def getPlayerAddresses(self):
         self.p1_addr = self.game_addresses["t7_p1_addr"]
@@ -193,9 +217,14 @@ class TKDirect: #(Singleton):
         print("Allocated new anim: 0x%x" % (self.allocated_frame_anim))
 
     def writePlayerMove(self):
-        self.wrote_player_move = True
         currmoveAddr = self.T.readInt(self.player + 0x220, 8)
+        if currmoveAddr == 0: return
         self.T.writeInt(currmoveAddr + 0x10, self.allocated_frame_anim, 8)
+        self.wrote_player_move = True
+        
+    def getPlayerAnimAddr(self):
+        currmoveAddr = self.T.readInt(self.player + 0x220, 8)
+        return None if currmoveAddr== 0 else self.T.readInt(currmoveAddr + 0x10, 8)
     
     def writeFloat(self, addr, value):
         self.T.writeBytes(addr, struct.pack('f', value))
