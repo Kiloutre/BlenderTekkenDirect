@@ -166,6 +166,10 @@ class TekkenAnimation:
     def getFramesize(self):
         return self.type2 * 0xC
         
+    def setLength(self, length):
+        self.length = length
+        self.writeInt(length, 4)
+        
     def getLength(self):
         return self.int(4)
     
@@ -217,6 +221,14 @@ def __get_visual_rotations__(armature, bones):
             #rot_source = bones[b].rotation_euler
             rot_source = getEulerVisualRotation(b, armature.name)
             poses[b] = { 'x': rot_source.x, 'y': rot_source.y, 'z': rot_source.z}
+            
+    #to be used if you have IK for those bones too
+    """
+    for b in ["BASE", "Hip", "Head", "Neck", "Spine1"]:
+        #rot_source = bones[b].rotation_euler
+        rot_source = getEulerVisualRotation(b, armature.name)
+        poses[b] = { 'x': rot_source.x, 'y': rot_source.y, 'z': rot_source.z}
+    """
     return poses
     
     
@@ -225,21 +237,21 @@ def getEulerVisualRotation(boneName, armatureName):
     bone_ml     = bone.matrix_local
     bone_pose   = bpy.data.objects[armatureName].pose.bones[boneName]
     bone_pose_m = bone_pose.matrix
-    #
+    
     if bone.parent:
         #
         parent        = bone.parent
         parent_ml     = parent.matrix_local
         parent_pose   = bone_pose.parent
         parent_pose_m = parent_pose.matrix
-        #
+        
         object_diff = parent_ml.inverted() @ bone_ml
         pose_diff   = parent_pose_m.inverted() @ bone_pose_m
         local_diff  = object_diff.inverted() @ pose_diff
-        #
+        
     else:
         local_diff = bone_ml.inverted() @ bone_pose_m
-    #
+    
     return local_diff.to_quaternion().to_euler(bone_pose.rotation_mode)
     
 def convertArmToTekkenXYZ(x, y, z):
@@ -266,7 +278,6 @@ def getAnimFrameFromBones(armature):
     offset1 = -(bones["BODY_SCALE__group"].location[2] * 1000)
     offset2 = (bones["BODY_SCALE__group"].location[1]) * 1000 + 1150
     offset3 = bones["BODY_SCALE__group"].location[0] * 1000
-    
     RotX = bones["BASE"].rotation_euler.z * -1
     RotY = bones["BASE"].rotation_euler.y
     RotZ = bones["BASE"].rotation_euler.x 
@@ -287,6 +298,29 @@ def getAnimFrameFromBones(armature):
     Head2 = bones["Head"].rotation_euler.x
     Head3 = bones["Head"].rotation_euler.y + (pi / 2)
     
+    #to be used if you have IK for those bones too
+    """
+    RotX = visualRots["BASE"]['z'] * -1
+    RotY = visualRots["BASE"]['y']
+    RotZ = visualRots["BASE"]['x'] 
+    
+    UpperBody1 = visualRots["Spine1"]['z'] * -1
+    UpperBody2 = visualRots["Spine1"]['y']
+    UpperBody3 = visualRots["Spine1"]['x'] + (pi / 2)
+    
+    LowerBody1 = visualRots["Hip"]['z'] * -1
+    LowerBody2 = visualRots["Hip"]['y']
+    LowerBody3 = visualRots["Hip"]['x'] - (pi / 2)
+    
+    Neck1 = visualRots["Neck"]['z'] * -1
+    Neck2 = visualRots["Neck"]['y']
+    Neck3 = visualRots["Neck"]['x']
+    
+    Head1 = visualRots["Head"]['z'] + (pi / 2)
+    Head2 = visualRots["Head"]['x']
+    Head3 = visualRots["Head"]['y'] + (pi / 2)
+    """
+    
     # --------- SHOULDER ------------
     
     #x, y, z = bones["R_Shoulder"].rotation_euler
@@ -297,20 +331,6 @@ def getAnimFrameFromBones(armature):
     RightInnerShoulder3 = z
     
     # --------- ARM IK -----------
-    
-    """
-    RightOuterShoulder1 = bones["R_Arm"].rotation_euler.x * -1 - pi / 2
-    RightOuterShoulder2 = bones["R_Arm"].rotation_euler.z * -1
-    RightOuterShoulder3 = bones["R_Arm"].rotation_euler.y * -1
-    
-    RightElbow1 = bones["R_ForeArm"].rotation_euler.x * -1
-    RightElbow2 = bones["R_ForeArm"].rotation_euler.y
-    RightElbow3 = bones["R_ForeArm"].rotation_euler.z * -1
-    
-    RightHand1 = bones["R_Hand"].rotation_euler.x + pi / 2
-    RightHand2 = bones["R_Hand"].rotation_euler.z * -1
-    RightHand3 = bones["R_Hand"].rotation_euler.y
-    """
     
     RightOuterShoulder1 = visualRots["R_Arm"]['x'] * -1 - pi / 2
     RightOuterShoulder2 = visualRots["R_Arm"]['z'] * -1
@@ -335,19 +355,6 @@ def getAnimFrameFromBones(armature):
     LeftInnerShoulder3 = z * -1
     
     # --------- ARM IK -----------
-    """
-    LeftOuterShoulder1 = bones["L_Arm"].rotation_euler.x - pi / 2
-    LeftOuterShoulder2 = bones["L_Arm"].rotation_euler.z
-    LeftOuterShoulder3 = bones["L_Arm"].rotation_euler.y * -1
-    
-    LeftElbow1 = bones["L_ForeArm"].rotation_euler.x
-    LeftElbow2 = bones["L_ForeArm"].rotation_euler.y
-    LeftElbow3 = bones["L_ForeArm"].rotation_euler.z
-    
-    LeftHand1 = bones["L_Hand"].rotation_euler.x * -1 + pi / 2
-    LeftHand2 = bones["L_Hand"].rotation_euler.z * -1
-    LeftHand3 = bones["L_Hand"].rotation_euler.y * -1
-    """
     
     LeftOuterShoulder1 = visualRots["L_Arm"]['x'] - pi / 2
     LeftOuterShoulder2 = visualRots["L_Arm"]['z']
@@ -363,33 +370,6 @@ def getAnimFrameFromBones(armature):
 
     
     #---------------- LEG IK -----------------
-    
-    """
-    RightHip1 = -bones["R_UpLeg"].rotation_euler.z
-    RightHip2 = bones["R_UpLeg"].rotation_euler.y
-    RightHip3 = bones["R_UpLeg"].rotation_euler.x
-    
-    RightKnee1 = bones["R_Leg"].rotation_euler.z * -1
-    RightKnee2 = bones["R_Leg"].rotation_euler.y
-    RightKnee3 = bones["R_Leg"].rotation_euler.x
-
-    RightFoot1 = bones["R_Foot"].rotation_euler.z * -1
-    RightFoot2 = bones["R_Foot"].rotation_euler.y
-    RightFoot3 = bones["R_Foot"].rotation_euler.x
-    
-    
-    LeftHip1 = -bones["L_UpLeg"].rotation_euler.z
-    LeftHip2 = bones["L_UpLeg"].rotation_euler.y
-    LeftHip3 = bones["L_UpLeg"].rotation_euler.x
-    
-    LeftKnee1 = bones["L_Leg"].rotation_euler.z * -1
-    LeftKnee2 = bones["L_Leg"].rotation_euler.y
-    LeftKnee3 = bones["L_Leg"].rotation_euler.x
-
-    LeftFoot1 = bones["L_Foot"].rotation_euler.z * -1
-    LeftFoot2 = bones["L_Foot"].rotation_euler.y
-    LeftFoot3 = bones["L_Foot"].rotation_euler.x
-    """
     
     RightHip1 = visualRots["R_UpLeg"]['z'] * -1
     RightHip2 = visualRots["R_UpLeg"]['y']
