@@ -14,78 +14,30 @@ class TekkenDirect:
 
 TK = TKDirect()
 
-# --- #
-
-defaultVariables = {
-    "tekken_armature": None,
-    "tekken_armature_2p": None,
-    "tekken_camera": None,
-    "tekken_live_preview": False,
-    "tekken_live_tracking": False
-}
-
-storedVariables = {}
-
-def getVal(key):
-    global storedVariables
-    if key not in storedVariables:
-        storedVariables[key] = defaultVariables[key]
-    return storedVariables[key] 
-
-def setVal(key, value):
-    global storedVariables
-    storedVariables[key] = value
-
 # --- Callback --- #
 
-def onPlayerCollisionChange(self, context):
-    TK.setPlayerCollision(self.p1_collision)
-
 def onLivePreviewChange(self, context):
-    setVal("tekken_live_preview", self.tekken_live_preview_check)
-    
-    if getVal("tekken_live_preview") and getVal("tekken_live_tracking"):
-        setVal("tekken_live_tracking", False)
-        setVal("tekken_live_tracking_check", False)
-    
-    TK.setPreview(getVal("tekken_live_preview"))
-    
-    print("onLivePreviewChange", self.tekken_live_preview_check)
+    if self.tekken_live_preview_check:
+        self.tekken_live_tracking_check = False
+    TK.setPreview(self.tekken_live_preview_check)
     
 def onLiveTrackingChange(self, context):
-    setVal("tekken_live_tracking", self.tekken_live_tracking_check == 1)
+    if self.tekken_live_tracking_check:
+        self.tekken_live_preview_check = False
+    TK.setTracking(self.tekken_live_tracking_check)
+
+def onCameraPreviewChange(self, context):
+    if self.tekken_camera_preview_check:
+        self.tekken_camera_track_check = False
+    TK.setCameraPreview(self.tekken_camera_preview_check)
     
-    if getVal("tekken_live_tracking") and getVal("tekken_live_preview"):
-        setVal("tekken_live_preview", False)
-        setVal("tekken_live_preview_check", False)
-        
-    TK.setTracking(getVal("tekken_live_tracking"))
-    
-    print("onLiveTrackingChange", self.tekken_live_tracking_check)
+def onCameraTrackingChange(self, context):
+    if self.tekken_camera_track_check:
+        self.tekken_camera_preview_check = False
+    TK.setCameraTracking(self.tekken_camera_track_check)
     
 def onAttachPlayerChange(self, context):
-    setVal("tekken_attach_other_player", self.tekken_attach_other_player_check == 1)
-    
-    TK.attach_player = getVal("tekken_attach_other_player")
-    print("onAttachPlayerChange", self.tekken_attach_other_player_check)
-    
-def onRangeLimitationToggle(self, context):
-    setVal("tekken_range_limitation", self.tekken_range_limitation_check == 1)
-    
-    TK.setRangeLimitation(not getVal("tekken_range_limitation"))
-    print("onRangeLimitationToggle", self.tekken_range_limitation_check)
-    
-def onCameraPreviewChange(self, context):
-    setVal("tekken_camera_preview", self.tekken_camera_preview_check == 1)
-    
-    TK.setCameraPreview(getVal("tekken_camera_preview"))
-    print("onCameraPreviewChange", self.tekken_camera_preview_check)
-    
-def onCameraTrackChange(self, context):
-    setVal("tekken_camera_track", self.tekken_camera_track_check == 1)
-    
-    TK.setCameraTracking(getVal("tekken_camera_track"))
-    print("onCameraTrackChange", self.tekken_camera_track_check)
+    TK.attach_player = self.tekken_attach_other_player_check
     
 # --- Checkboxes --- #
 
@@ -112,10 +64,10 @@ checkboxes = [
     },
     
     {
-        "var_name": "tekken_range_limitation_check",
-        "name": "Disable range limitation",
+        "var_name": "tekken_distance_limit",
+        "name": "Disable distance limit",
         "default": False,
-        "callback": onRangeLimitationToggle
+        "callback": lambda s, c: TK.setDistanceLimit(s.tekken_distance_limit)
     },
     
     {
@@ -128,7 +80,7 @@ checkboxes = [
         "var_name": "tekken_camera_track_check",
         "name": "Track camera",
         "default": False,
-        "callback": onCameraTrackChange
+        "callback": onCameraTrackingChange
     },
     
 ]
@@ -185,17 +137,10 @@ class SetActiveSkeletonBtn(bpy.types.Operator):
     
     def execute(self, context):
         if context.object.type == 'ARMATURE':
-        
-            if getVal("tekken_armature") != None:
-                try: bpy.context.scene.objects[getVal("tekken_armature")].show_name = False
-                except: pass
-                
-            setVal("tekken_armature", context.active_object.name)
             TK.setActiveSkeleton(0, context.active_object.name)
             context.active_object.show_name = True
             self.report({'INFO'}, "New armature selected")
         else:
-            setVal("tekken_armature", None)
             self.report({'INFO'}, "(1p) Not a valid armature")
             TK.armature_name = None
             
@@ -208,17 +153,10 @@ class Set2pActiveSkeletonBtn(bpy.types.Operator):
     
     def execute(self, context):
         if context.object.type == 'ARMATURE':
-        
-            if getVal("tekken_armature_2p") != None:
-                try: bpy.context.scene.objects[getVal("tekken_armature_2p")].show_name = False
-                except: pass
-                
-            setVal("tekken_armature_2p", context.active_object.name)
             TK.setActiveSkeleton(1, context.active_object.name)
             context.active_object.show_name = True
             self.report({'INFO'}, "New 2P armature selected")
         else:
-            setVal("tekken_armature_2p", None)
             self.report({'INFO'}, "(2p) Not a valid armature")
             TK.armature_name_2p = None
         return {'FINISHED'}
@@ -233,7 +171,6 @@ class SetActiveCamera(bpy.types.Operator):
             context.scene.objects[context.active_object.name].data.lens_unit = 'FOV'
             context.scene.objects[context.active_object.name].data.angle = 1
             
-            setVal("tekken_camera", context.active_object.name)
             TK.camera_name = context.active_object.name
             self.report({'INFO'}, "New camera selected")
         else:
@@ -267,7 +204,7 @@ class TekkenPanel(bpy.types.Panel):
         
         l.prop(context.scene, "p1_collision")
         l.prop(context.scene, "tekken_attach_other_player_check")
-        l.prop(context.scene, "tekken_range_limitation_check")
+        l.prop(context.scene, "tekken_distance_limit")
         
         #2p
         l.operator(Set2pActiveSkeletonBtn.bl_idname)
@@ -306,7 +243,7 @@ def register():
         default = 0,
         min = 0,
         max = 10,
-        update = onPlayerCollisionChange
+        update = lambda s, c: TK.setPlayerCollision(s.p1_collision)
     )
         
     for c in classes:

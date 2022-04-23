@@ -489,9 +489,11 @@ class TKDirect: #(Singleton):
             self.camera_tracking = False
             if not self.tracking and not self.preview: self.stop()
             
-    def setRangeLimitation(self, enabled):
+    def setDistanceLimit(self, disabled):
         if not self.running: return
-        if enabled:
-            self.T.writeBytes(self.game_addresses["range_limitation_addr"], [0x0F, 0x86, 0x75, 0x01, 0x00, 0x00])
+        if disabled:
+            self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0xE9, 0x76, 0x01, 0x00, 0x00, 0x90])
+            #no limit is present
         else:
-            self.T.writeBytes(self.game_addresses["range_limitation_addr"], [0xE9, 0x76, 0x01, 0x00, 0x00, 0x90])
+            self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0x0F, 0x86, 0x75, 0x01, 0x00, 0x00])
+            #limit is present
