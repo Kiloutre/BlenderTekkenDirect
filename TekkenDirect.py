@@ -15,31 +15,36 @@ class TKDirect: #(Singleton):
         self.running = False
         self.game_addresses = AddressFile(pathlib.Path(__file__).parent.resolve().__str__() + "\\game_addresses.txt")
         
-        self.update_delay = 1/60#0.1
+        self.update_delay = 1/30 #30 times per second
         
         self.preview = False
         self.tracking = False
         self.attach_player = False
         self.camera_preview = False
+        self.camera_tracking = False
         
         self.single_frame_preview = True
         
         self.collision = 0
-        self.playerid = 0
         self.armature_name = None
+        self.armature_name_2p = None
         self.camera_name = None
         
         self.camera = None
         self.armature = None
-        self.player = None
-        self.other_player = None
+        self.armature_2p = None
         self.p1_addr = None
         self.p2_addr = None
         self.cam_addr = None
         
+        
         self.allocated_frame_anim = None
         self.wrote_player_move = False
         self.preview_frame_anim = TekkenAnimation()
+        
+        self.allocated_frame_anim_2p = None
+        self.wrote_player_move_2p = False
+        self.preview_frame_anim_2p = TekkenAnimation()
         
     # -- #
         
@@ -57,7 +62,6 @@ class TKDirect: #(Singleton):
         
         self.getPlayerAddresses()
         self.getCameraAddr()
-        self.applyPlayerCollision()
         self.allocateFrameAnim()
         self.getFrameCounterAddr()
         
@@ -77,18 +81,41 @@ class TKDirect: #(Singleton):
         
         while self.running:
             try:
-                if self.armature_name == None:
-                    print("No armature selected")
-                else:
+                #1p code
+                if self.armature_name != None:
                     self.armature = bpy.context.scene.objects[self.armature_name]
-                    if self.tracking: self.trackPlayer()
-                    elif self.preview: self.previewPlayer()
                     
-                    if self.attach_player: self.attachPlayer()
+                    if self.tracking:
+                        self.trackPlayer(self.p1_addr, self.armature)
+                    elif self.preview:
+                        self.previewPlayer(self.p1_addr, self.armature)
+                        self.T.writeBytes(self.allocated_frame_anim, bytes(self.preview_frame_anim.data))
+                        
+                        #less byts written
+                        #offset = self.preview_frame_anim.offset
+                        #self.T.writeBytes(self.allocated_frame_anim + offset, bytes(self.preview_frame_anim.data[offset:]))
                     
-                if self.camera_preview and self.camera_name != None:
+                    # if we need to carry 2p around
+                    if self.attach_player and not self.armature_name_2p: self.attachPlayer()
+                    
+                #2p code
+                if self.armature_name_2p != None:
+                    self.armature_2p = bpy.context.scene.objects[self.armature_name_2p]
+                    
+                    if self.tracking:
+                        self.trackPlayer(self.p2_addr, self.armature_2p)
+                    elif self.preview:
+                        self.previewPlayer(self.p2_addr, self.armature_2p)
+                        self.T.writeBytes(self.allocated_frame_anim_2p, bytes(self.preview_frame_anim_2p.data))
+                    
+                # camera
+                if self.camera_name != None:
                     self.camera = bpy.context.scene.objects[self.camera_name]
-                    self.previewCamera()
+                    if self.camera_preview:
+                        self.previewCamera()
+                    elif self.camera_tracking:
+                        self.trackCamera()
+                    
             except Exception:
                 print(traceback.format_exc())
                 self.stop()
@@ -98,11 +125,12 @@ class TKDirect: #(Singleton):
         print("Loop exited")
     
     def waitFrame(self):
-        sleep(self.update_delay)
+        #sleep(self.update_delay)
         
-        #currFrame = self.T.readInt(self.frame_counter, 4)
-        #while self.T.readInt(self.frame_counter, 4) == currFrame:
-        #    sleep(0.001)
+        currFrame = self.T.readInt(self.frame_counter, 4)
+        while self.running and self.T.readInt(self.frame_counter, 4) == currFrame:
+            pass
+        
     
     def stop(self):
         if not self.running: return
@@ -110,8 +138,12 @@ class TKDirect: #(Singleton):
         
         self.cam_addr = None
         self.allocated_frame_anim = None
+        self.allocated_frame_anim_2p = None
         self.wrote_player_move = False
+        self.wrote_player_move_2p = False
         self.running = False
+        self.preview = False
+        self.tracking = False
         self.T.close()
         self.T = None
         
@@ -130,27 +162,21 @@ class TKDirect: #(Singleton):
         self.T.writeBytes(self.game_addresses['camera_code_injection'], bytes([0xF2, 0x0F, 0x11, 0x87, 0xF8, 0x03, 0x0, 0x0])) # x
         self.T.writeBytes(self.game_addresses['camera_code_injection'] + 0x1B, bytes([0x89, 0x87, 0, 0x04, 0, 0]))
         self.T.writeBytes(self.game_addresses['camera_code_injection2'], bytes([0xF3, 0x0F, 0x11, 0x89, 0x9C, 0x03, 0x00, 0x00])) #fov
-        
-    
-    def applyPlayerCollision(self):
-        self.T.writeInt(self.player + 0xae0, self.collision, 1)
-        self.T.writeInt(self.other_player + 0xae0, self.collision, 1)
     
     # getPlayerYaw - Blender output
-    def getPlayerYaw(self):
-        return self.T.readInt(self.player + 0x1c0, 2) * (pi * 2 / 65535)
+    def getPlayerYaw(self, playerAddress):
+        return self.T.readInt(playerAddress + 0x1c0, 2) * (pi * 2 / 65535)
         
     # setPlayerYaw - Expects blender input
-    def setPlayerYaw(self, yaw):
+    def setPlayerYaw(self, playerAddr, yaw):
         while yaw > pi * 2:
             yaw -= pi * 2
         yaw = int((yaw - pi * 2) * (65535 / (pi * 2)))
         while yaw < 0: yaw += 65535
-        self.T.writeInt(self.player + 0xEE, yaw, 2) #half circle offset
+        self.T.writeInt(playerAddr + 0xEE, yaw, 2) #half circle offset
     
     # getPlayerPos - Tekken output
-    def getPlayerPos(self):
-        playerAddress = self.player
+    def getPlayerPos(self, playerAddress):
         #x, y, z
         
         return {
@@ -176,20 +202,20 @@ class TKDirect: #(Singleton):
     # - #
     
     # getArmaturePos - Blender output
-    def getArmaturePos(self):
-        return self.armature.location
+    def getArmaturePos(self, armature):
+        return armature.location
         
     # setArmaturePos - Expects blender input
-    def setArmaturePos(self, x, y, z):
-        self.armature.location = Vector((x, y, z))  #blender inverts x and y
+    def setArmaturePos(self, armature, x, y, z):
+        armature.location = Vector((x, y, z))  #blender inverts x and y
         
     # getArmatureYaw - Blender output
-    def getArmatureYaw(self):
-        return self.armature.rotation_euler[2]
+    def getArmatureYaw(self, armature):
+        return armature.rotation_euler[2]
         
     # setArmatureYaw - Expects blender input
-    def setArmatureYaw(self, yaw):
-        self.armature.rotation_euler = Euler((pi / 2, 0.0, yaw), 'XYZ')
+    def setArmatureYaw(self, armature, yaw):
+        armature.rotation_euler = Euler((pi / 2, 0.0, yaw), 'XYZ')
         
     # - #
     
@@ -198,9 +224,18 @@ class TKDirect: #(Singleton):
     
         x, y, z = self.camera.location
         rot_x, rot_y, rot_z = self.camera.rotation_euler
-        fov = self.camera.data.angle * 50
+        fov = self.camera.data.angle * 57 # i don't know why it's 57 but this is approximatively correct
         
         return [x, y, z, rot_x, rot_y, rot_z, fov]
+        
+    # setBlenderCameraProperties - Expects tekken input
+    def setBlenderCameraProperties(self, camData):
+        x, y, z, rot_x, rot_y, rot_z, fov = camData
+        
+        self.camera.location = (x, y, z)
+        self.camera.rotation_euler = (rot_x, rot_z, rot_y)
+        
+        self.camera.data.angle = fov
     
     # setTekkenCameraProperties - Expects tekken input
     def setTekkenCameraProperties(self, x, y, z, rot_x, rot_y, rot_z, fov):
@@ -224,13 +259,34 @@ class TKDirect: #(Singleton):
         self.writeFloat(camAddr + 0x40C, tilt) #tilt
         
         self.writeFloat(camAddr + 0x39C, fov) #FOV
+    
+    # getTekkenCameraProperties - Blender output
+    def getTekkenCameraProperties(self):
+        camAddr = self.cam_addr
+    
+        x = self.readFloat(camAddr + 0x3F8) / 100
+        y = -(self.readFloat(camAddr + 0x3FC) / 100)
+        z = self.readFloat(camAddr + 0x400)/ 100
+        
+        mult = pi / 180
+        
+        rot_x = self.readFloat(camAddr + 0x404) * mult + pi / 2 #roty
+        rot_y = self.readFloat(camAddr + 0x408) * mult * -1 - pi / 2 #rotx
+        rot_z = 0#self.readFloat(camAddr + 0x40C, tilt) #tilt
+        
+        fov = self.readFloat(camAddr + 0x39C) / 57
+        
+        return x, y, z, rot_x, rot_y, rot_z, fov
         
     # - Main functions - #
     
+    def trackCamera(self):
+        camData = self.getTekkenCameraProperties()
+        self.setBlenderCameraProperties(camData)
+        
+    
     def previewCamera(self):
         camData = self.getBlenderCameraProperties()
-        # conversion
-        
         self.setTekkenCameraProperties(*camData)
         
     def attachPlayer(self):
@@ -240,45 +296,41 @@ class TKDirect: #(Singleton):
         offset2 = (localLocation[1]) * 1000
         offset3 = localLocation[0] * 1000
         
-        playerPos = self.getPlayerPos()
+        playerPos = self.getPlayerPos(self.p1_addr)
         
         playerPos['x'] += offset1 + 2000 #?
         playerPos['y'] += offset3 + 2000 #?
         playerPos['z'] += offset2 + 2500 #hauteur
         
-        self.setPlayerFloorHeight(self.other_player, playerPos['z'])
-        self.setPlayerPos(self.other_player, playerPos['x'], playerPos['y'])
+        self.setPlayerFloorHeight(self.p2_addr, playerPos['z'])
+        self.setPlayerPos(self.p2_addr, playerPos['x'], playerPos['y'])
         
         
-    def previewPlayer(self):
+    def previewPlayer(self, playerAddress, armature):
         #self.VR.setIKFromVR(self.armature)
     
-        animFrame = getAnimFrameFromBones(self.armature)
+        animFrame = getAnimFrameFromBones(armature)
         
         for i in range(self.preview_frame_anim.field_count):
             self.preview_frame_anim.setField(animFrame[i], 0, i)
-            
-        if not self.wrote_player_move and self.preview: self.writePlayerMove()
-            
-        self.T.writeBytes(self.allocated_frame_anim, bytes(self.preview_frame_anim.data))
         
-        rot = self.getArmatureYaw()
-        self.setPlayerYaw(rot)
+        rot = self.getArmatureYaw(armature)
+        self.setPlayerYaw(playerAddress, rot)
         
-        x, y, z = self.getArmaturePos()
-        self.setPlayerPos(self.player, x * 1000, -y * 1000)
-        self.setPlayerFloorHeight(self.player, z * 1000)
+        x, y, z = self.getArmaturePos(armature)
+        self.setPlayerPos(playerAddress, x * 1000, -y * 1000)
+        self.setPlayerFloorHeight(playerAddress, z * 1000)
     
-    def trackPlayer(self):
-        pos = self.getPlayerPos()
-        self.setArmaturePos((pos['x'] / 1000), -(pos['y'] / 1000), pos['z'] / 1000)
+    def trackPlayer(self, playerAddress, armature):
+        pos = self.getPlayerPos(playerAddress)
+        self.setArmaturePos(armature, (pos['x'] / 1000), -(pos['y'] / 1000), pos['z'] / 1000)
         
-        yaw = self.getPlayerYaw()
-        self.setArmatureYaw(yaw)
+        yaw = self.getPlayerYaw(playerAddress)
+        self.setArmatureYaw(armature, yaw)
         
-        animAddr = self.getPlayerAnimAddr()
+        animAddr = self.getPlayerAnimAddr(playerAddress)
         if animAddr != None and self.T.readInt(animAddr, 1) == 0xC8:
-            frame = self.T.readInt(self.player + self.game_addresses["curr_frame_timer_offset"], 4)
+            frame = self.T.readInt(playerAddress + self.game_addresses["curr_frame_timer_offset"], 4)
             frame = min(frame, self.T.readInt(animAddr + 4, 4))
             type2 = self.T.readInt(animAddr + 2, 1)
             
@@ -297,15 +349,13 @@ class TKDirect: #(Singleton):
             
             start_addr = animAddr + offset + frame_size * (frame - 1)
             floats = [self.readFloat(start_addr + i * 4) for i in range(min(field_count, 69))]
-            applyRotationFromAnimdata(self.armature, floats)
+            applyRotationFromAnimdata(armature, floats)
         
     # -  - #
     
     def getPlayerAddresses(self):
         self.p1_addr = self.game_addresses["t7_p1_addr"]
         self.p2_addr = self.p1_addr + self.game_addresses["t7_playerstruct_size"]
-        self.player = self.p1_addr if self.playerid == 0 else self.p2_addr
-        self.other_player = self.p1_addr if self.playerid == 1 else self.p2_addr
         
     def getCameraAddr(self):
         self.cam_addr = self.game_addresses['camera_ptr']
@@ -318,17 +368,34 @@ class TKDirect: #(Singleton):
     
     def allocateFrameAnim(self):
         self.allocated_frame_anim = self.T.allocateMem(self.preview_frame_anim.size)
-        print("Allocated new anim: 0x%x" % (self.allocated_frame_anim))
-
-    def writePlayerMove(self):
-        currmoveAddr = self.T.readInt(self.player + 0x220, 8)
-        if currmoveAddr == 0: return
-        self.T.writeInt(currmoveAddr + 0x10, self.allocated_frame_anim, 8)
-        self.wrote_player_move = True
+        self.allocated_frame_anim_2p = self.T.allocateMem(self.preview_frame_anim_2p.size)
         
-    def getPlayerAnimAddr(self):
-        currmoveAddr = self.T.readInt(self.player + 0x220, 8)
-        return None if currmoveAddr== 0 else self.T.readInt(currmoveAddr + 0x10, 8)
+        self.T.writeBytes(self.allocated_frame_anim, bytes(self.preview_frame_anim.data))
+        self.T.writeBytes(self.allocated_frame_anim_2p, bytes(self.preview_frame_anim_2p.data))
+        
+        
+        print("(1p) Allocated new anim: 0x%x" % (self.allocated_frame_anim))
+        print("(2p) Allocated new anim: 0x%x" % (self.allocated_frame_anim_2p))
+
+    def writePlayerMove(self, playerid):
+        if playerid == 0 and self.wrote_player_move: return
+        if playerid == 1 and self.wrote_player_move_2p: return
+        
+        playerAddress = self.p1_addr if playerid == 0 else self.p2_addr
+        animAddr = self.allocated_frame_anim if playerid == 0 else self.allocated_frame_anim_2p
+        
+        currmoveAddr = self.T.readInt(playerAddress + 0x220, 8)
+        if currmoveAddr != 0:
+            self.T.writeInt(currmoveAddr + 0x10, animAddr, 8)
+            
+        if playerid == 0:
+            self.wrote_player_move = True
+        else:
+            self.wrote_player_move_2p = True
+        
+    def getPlayerAnimAddr(self, playerAddress):
+        currmoveAddr = self.T.readInt(playerAddress + 0x220, 8)
+        return None if currmoveAddr == 0 else self.T.readInt(currmoveAddr + 0x10, 8)
     
     def writeFloat(self, addr, value):
         self.T.writeBytes(addr, struct.pack('f', value))
@@ -338,32 +405,34 @@ class TKDirect: #(Singleton):
     
     # -Interactions- #
     
-    def allowFreeHeadMovement(self):
-        if self.running:
-            playerAddress = self.player
-            currmoveAddr = self.T.readInt(self.player + 0x220, 8)
-            if currmoveAddr != 0 :
+    def setActiveSkeleton(self, playerid, armature_name):
+        if playerid == 0:
+            self.armature_name = armature_name
+            if armature_name == None: self.wrote_player_move = False
+        else:
+            self.armature_name_2p = armature_name
+            if armature_name == None: self.wrote_player_move = False
+        
+        if self.preview: self.writePlayerMove(playerid)
+            
+    
+    def allowHeadMovement(self, playerid):
+        if self.preview:
+            playerAddress = self.p1_addr if playerid == 0 else self.p2_addr
+            currmoveAddr = self.T.readInt(playerAddress + 0x220, 8)
+            
+            if currmoveAddr != 0:
                 self.T.writeInt(currmoveAddr + 0x98, 0, 4)
-                return True
-        return False
+
         
     def checkStatus(self):
         if False:
             self.stop()
             
     def setPlayerCollision(self, collision):
-        self.collision = collision
-        if self.running: self.applyPlayerCollision()
-            
-    def setMainPlayerFloorHeight(self, floorheight):
-        if self.running:
-            self.setPlayerFloorHeight(self.player, float(floorheight))
-            
-    def setTarget(self, playerid):
-        if playerid == self.playerid: return
-        self.playerid = playerid
-        self.player = self.p1_addr if playerid == 0 else self.p2_addr
-        self.other_player = self.p1_addr if playerid == 1 else self.p2_addr
+        if self.preview:
+            self.T.writeInt(self.p1_addr + 0xae0, self.collision, 1)
+            self.T.writeInt(self.p2_addr + 0xae0, self.collision, 1)
     
     def setPreview(self, enabled):
         if enabled:
@@ -372,23 +441,14 @@ class TKDirect: #(Singleton):
             
             if not self.running:
                 self.start()
+                
+            if self.armature_name: self.writePlayerMove(0)
+            if self.armature_name_2p: self.writePlayerMove(1)
         else:
             self.preview = False
-            if not self.tracking and not self.camera_preview: self.stop()
-    
-    def setCameraPreview(self, enabled):
-        if enabled:
-            self.camera_preview = True
-            self.tracking = False
-            
-            if not self.running:
-                self.start()
-                
-            self.lockCamera()
-        else:
-            self.unlockCamera()
-            self.camera_preview = False
-            if not self.tracking and not self.preview: self.stop()
+            self.wrote_player_move = False
+            self.wrote_player_move_2p = False
+            if not self.camera_preview and not self.camera_tracking: self.stop()
     
     def setTracking(self, enabled):
         if enabled:
@@ -399,4 +459,39 @@ class TKDirect: #(Singleton):
                 self.start()
         else:
             self.tracking = False
-            if not self.preview and not self.camera_preview: self.stop()
+            if not self.camera_preview and not self.camera_tracking: self.stop()
+    
+    def setCameraPreview(self, enabled):
+        if enabled:
+            self.camera_preview = True
+            self.camera_tracking = False
+            
+            if not self.running:
+                self.start()
+                
+            self.lockCamera()
+        else:
+            self.unlockCamera()
+            self.camera_preview = False
+            if not self.tracking and not self.preview: self.stop()
+    
+    def setCameraTracking(self, enabled):
+        if enabled:
+            self.camera_tracking = True
+            
+            if not self.running:
+                self.start()
+                
+            if self.camera_preview:
+                self.camera_preview = False
+                self.unlockCamera()
+        else:
+            self.camera_tracking = False
+            if not self.tracking and not self.preview: self.stop()
+            
+    def setRangeLimitation(self, enabled):
+        if not self.running: return
+        if enabled:
+            self.T.writeBytes(self.game_addresses["range_limitation_addr"], [0x0F, 0x86, 0x75, 0x01, 0x00, 0x00])
+        else:
+            self.T.writeBytes(self.game_addresses["range_limitation_addr"], [0xE9, 0x76, 0x01, 0x00, 0x00, 0x90])
