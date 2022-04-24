@@ -17,47 +17,47 @@ TK = TKDirect()
 # --- Callback --- #
 
 def onLivePreviewChange(self, context):
-    if self.tekken_live_preview_check:
-        self.tekken_live_tracking_check = False
-    TK.setPreview(self.tekken_live_preview_check)
+    if self.tekken_live_preview:
+        self.tekken_live_tracking = False
+    TK.setPreview(self.tekken_live_preview)
     
 def onLiveTrackingChange(self, context):
-    if self.tekken_live_tracking_check:
-        self.tekken_live_preview_check = False
-    TK.setTracking(self.tekken_live_tracking_check)
+    if self.tekken_live_tracking:
+        self.tekken_live_preview = False
+    TK.setTracking(self.tekken_live_tracking)
 
 def onCameraPreviewChange(self, context):
-    if self.tekken_camera_preview_check:
-        self.tekken_camera_track_check = False
-    TK.setCameraPreview(self.tekken_camera_preview_check)
+    if self.tekken_camera_preview and self.tekken_camera_track:
+        self.tekken_camera_track = False
+    TK.setCameraPreview(self.tekken_camera_preview)
     
 def onCameraTrackingChange(self, context):
-    if self.tekken_camera_track_check:
-        self.tekken_camera_preview_check = False
-    TK.setCameraTracking(self.tekken_camera_track_check)
+    if self.tekken_camera_track and self.tekken_camera_preview:
+        self.tekken_camera_preview = False
+    TK.setCameraTracking(self.tekken_camera_track)
     
 def onAttachPlayerChange(self, context):
-    TK.attach_player = self.tekken_attach_other_player_check
+    TK.attach_player = self.tekken_attach_other_player
     
 # --- Checkboxes --- #
 
 checkboxes = [
     {
-        "var_name": "tekken_live_preview_check",
+        "var_name": "tekken_live_preview",
         "name": "Live preview (Blender -> Game)",
         "default": False,
         "callback": onLivePreviewChange
     },
     
     {
-        "var_name": "tekken_live_tracking_check",
+        "var_name": "tekken_live_tracking",
         "name": "Live tracking (Game -> Blender)",
         "default": False,
         "callback": onLiveTrackingChange
     },
     
     {
-        "var_name": "tekken_attach_other_player_check",
+        "var_name": "tekken_attach_other_player",
         "name": "Attach other player",
         "default": False,
         "callback": onAttachPlayerChange
@@ -69,15 +69,27 @@ checkboxes = [
         "default": False,
         "callback": lambda s, c: TK.setDistanceLimit(s.tekken_distance_limit)
     },
+    {
+        "var_name": "tekken_player_collision",
+        "name": "Disable player collision",
+        "default": False,
+        "callback": lambda s, c: TK.setPlayerCollision(s.tekken_player_collision)
+    },
+    {
+        "var_name": "tekken_wall_collision",
+        "name": "Disable wall collision",
+        "default": False,
+        "callback": lambda s, c: TK.setWallCollision(s.tekken_wall_collision)
+    },
     
     {
-        "var_name": "tekken_camera_preview_check",
+        "var_name": "tekken_camera_preview",
         "name": "Preview camera",
         "default": False,
         "callback": onCameraPreviewChange
     },
     {
-        "var_name": "tekken_camera_track_check",
+        "var_name": "tekken_camera_track",
         "name": "Track camera",
         "default": False,
         "callback": onCameraTrackingChange
@@ -191,8 +203,8 @@ class TekkenPanel(bpy.types.Panel):
         
         # Live tracking #
         
-        l.prop(context.scene, "tekken_live_tracking_check")
-        l.prop(context.scene, "tekken_live_preview_check")
+        l.prop(context.scene, "tekken_live_tracking")
+        l.prop(context.scene, "tekken_live_preview")
         
         l.label(text='____________________________________')
         
@@ -202,9 +214,11 @@ class TekkenPanel(bpy.types.Panel):
         l.operator(SetActiveSkeletonBtn.bl_idname)
         l.operator(AllowHeadMovementBtn.bl_idname)
         
-        l.prop(context.scene, "p1_collision")
-        l.prop(context.scene, "tekken_attach_other_player_check")
+        l.prop(context.scene, "stage_collision")
+        l.prop(context.scene, "tekken_attach_other_player")
         l.prop(context.scene, "tekken_distance_limit")
+        l.prop(context.scene, "tekken_player_collision")
+        l.prop(context.scene, "tekken_wall_collision")
         
         #2p
         l.operator(Set2pActiveSkeletonBtn.bl_idname)
@@ -212,8 +226,8 @@ class TekkenPanel(bpy.types.Panel):
         
         #Camera: unused because needs more math
         l.label(text='____________________________________')
-        l.prop(context.scene, "tekken_camera_preview_check")
-        l.prop(context.scene, "tekken_camera_track_check")
+        l.prop(context.scene, "tekken_camera_preview")
+        l.prop(context.scene, "tekken_camera_track")
         l.operator(SetActiveCamera.bl_idname)
         
         
@@ -238,12 +252,12 @@ def register():
             update = propInfo["callback"],
         ))
         
-    bpy.types.Scene.p1_collision = bpy.props.IntProperty(
-        name = "Players Collision",
+    bpy.types.Scene.stage_collision = bpy.props.IntProperty(
+        name = "Stage collision",
         default = 0,
         min = 0,
         max = 10,
-        update = lambda s, c: TK.setPlayerCollision(s.p1_collision)
+        update = lambda s, c: TK.setPlayersStageCollision(s.stage_collision)
     )
         
     for c in classes:

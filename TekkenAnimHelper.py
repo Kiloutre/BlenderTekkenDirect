@@ -134,6 +134,12 @@ class TekkenAnimation:
         0x23: 0x94,
         0x31: 0xcc 
     }
+        
+    def _getHeaderSizeFromArgs_(bone_count):
+        return TekkenAnimation.AnimC8OffsetTable[bone_count]
+        
+    def _getFramesizeFromArgs_(bone_count):
+        return bone_count * 0xC
 
     def __init__(self, data=None):
         if data == None:

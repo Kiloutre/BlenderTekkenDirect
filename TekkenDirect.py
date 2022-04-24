@@ -25,7 +25,6 @@ class TKDirect: #(Singleton):
         
         self.single_frame_preview = True
         
-        self.collision = 0
         self.armature_name = None
         self.armature_name_2p = None
         self.camera_name = None
@@ -36,6 +35,7 @@ class TKDirect: #(Singleton):
         self.p1_addr = None
         self.p2_addr = None
         self.cam_addr = None
+        self.T = None
         
         
         self.allocated_frame_anim = None
@@ -429,10 +429,10 @@ class TKDirect: #(Singleton):
         if False:
             self.stop()
             
-    def setPlayerCollision(self, collision):
-        if self.preview:
-            self.T.writeInt(self.p1_addr + 0xae0, self.collision, 1)
-            self.T.writeInt(self.p2_addr + 0xae0, self.collision, 1)
+    def setPlayersStageCollision(self, collision):
+        if self.running:
+            self.T.writeInt(self.p1_addr + 0xae0, collision, 1)
+            self.T.writeInt(self.p2_addr + 0xae0, collision, 1)
     
     def setPreview(self, enabled):
         if enabled:
@@ -493,7 +493,19 @@ class TKDirect: #(Singleton):
         if not self.running: return
         if disabled:
             self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0xE9, 0x76, 0x01, 0x00, 0x00, 0x90])
-            #no limit is present
         else:
             self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0x0F, 0x86, 0x75, 0x01, 0x00, 0x00])
-            #limit is present
+    
+    def setPlayerCollision(self, disabled):
+        if not self.running: return
+        if disabled:
+            self.T.writeBytes(self.game_addresses["player_collision_code_addr"], [0xE9, 0xE0, 0x00, 0x00, 0x00])
+        else:
+            self.T.writeBytes(self.game_addresses["player_collision_code_addr"], [0x75, 0x16, 0x0F, 0x2E, 0xB3])
+    
+    def setWallCollision(self, disabled):
+        if not self.running: return
+        if disabled:
+            self.T.writeBytes(self.game_addresses["wall_collision_code_addr"], [0x90] * 8)
+        else:
+            self.T.writeBytes(self.game_addresses["wall_collision_code_addr"], [0xF3, 0x0F, 0x11, 0x86, 0x08, 0x13, 0x00, 0x00])
