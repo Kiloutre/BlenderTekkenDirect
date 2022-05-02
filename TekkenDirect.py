@@ -1,5 +1,6 @@
 from . Addresses import AddressFile, GameClass
-from . TekkenAnimHelper import TekkenAnimation, getAnimFrameFromBones, applyRotationFromAnimdata
+from . TekkenAnimHelper import TekkenAnimation, getAnimFrameFromBones, getHandAnimFrameFromBones, applyRotationFromAnimdata, convertCameraToUnrealRot, convertCameraToBlenderRot, getFaceAnimFrameFromBones
+from . characterFaces import getCharacterFacePos
 #from . VR import VRIntegrator
 from time import time, sleep
 import bpy
@@ -22,6 +23,9 @@ class TKDirect: #(Singleton):
         self.attach_player = False
         self.camera_preview = False
         self.camera_tracking = False
+        self.preview_hand = False
+        self.preview_face = False
+        self.preview_face_2p = False
         
         self.single_frame_preview = True
         
@@ -41,10 +45,22 @@ class TKDirect: #(Singleton):
         self.allocated_frame_anim = None
         self.wrote_player_move = False
         self.preview_frame_anim = TekkenAnimation()
+        self.hand_anim = [TekkenAnimation(type="hand"), TekkenAnimation(type="hand")]
+        self.hand_anim_addr = None
+        self.face_anim = TekkenAnimation(type="face")
+        self.face_anim_addr = None
+        self.face_base_pose = None
+        self.characterId = None
         
         self.allocated_frame_anim_2p = None
         self.wrote_player_move_2p = False
         self.preview_frame_anim_2p = TekkenAnimation()
+        self.hand_anim_2p = [TekkenAnimation(type="hand"), TekkenAnimation(type="hand")]
+        self.hand_anim_2p_addr = None
+        self.face_anim_2p = TekkenAnimation(type="face")
+        self.face_anim_2p_addr = None
+        self.face_base_pose_2p = None
+        self.characterId_2p = None
         
     # -- #
         
@@ -88,8 +104,14 @@ class TKDirect: #(Singleton):
                     if self.tracking:
                         self.trackPlayer(self.p1_addr, self.armature)
                     elif self.preview:
-                        self.previewPlayer(self.p1_addr, self.armature)
+                        self.previewPlayer(self.p1_addr, self.armature, self.preview_frame_anim)
                         self.T.writeBytes(self.allocated_frame_anim, bytes(self.preview_frame_anim.data))
+                        
+                        if self.preview_hand:
+                            self.previewHand(self.p1_addr, self.armature, self.hand_anim, self.hand_anim_addr)
+                            
+                        if self.preview_face:
+                            self.previewFace(self.p1_addr, self.armature, self.face_anim, self.face_anim_addr, self.face_base_pose, self.characterId)
                         
                         #less byts written
                         #offset = self.preview_frame_anim.offset
@@ -105,8 +127,14 @@ class TKDirect: #(Singleton):
                     if self.tracking:
                         self.trackPlayer(self.p2_addr, self.armature_2p)
                     elif self.preview:
-                        self.previewPlayer(self.p2_addr, self.armature_2p)
+                        self.previewPlayer(self.p2_addr, self.armature_2p, self.preview_frame_anim_2p)
                         self.T.writeBytes(self.allocated_frame_anim_2p, bytes(self.preview_frame_anim_2p.data))
+                        
+                        if self.preview_hand:
+                            self.previewHand(self.p2_addr, self.armature_2p, self.hand_anim_2p, self.hand_anim_2p_addr)
+                            
+                        if self.preview_face_2p:
+                            self.previewFace(self.p2_addr, self.armature_2p, self.face_anim_2p, self.face_anim_2p_addr, self.face_base_pose_2p, self.characterId_2p)
                     
                 # camera
                 if self.camera_name != None:
@@ -233,6 +261,7 @@ class TKDirect: #(Singleton):
         x, y, z, rot_x, rot_y, rot_z, fov = camData
         
         self.camera.location = (x, y, z)
+        rot_x, rot_y, rot_z = convertCameraToBlenderRot(rot_x, rot_y, rot_z)
         self.camera.rotation_euler = (rot_x, rot_z, rot_y)
         
         self.camera.data.angle = fov
@@ -247,16 +276,11 @@ class TKDirect: #(Singleton):
         
         mult = 180 / pi
         
-        rot_x -= pi / 2
-        rot_z += pi / 2
+        rot_x, rot_y, rot_z = convertCameraToUnrealRot(rot_x, rot_y, rot_z)
         
-        y = (rot_x) * mult
-        p = (rot_z * -1) * mult
-        tilt = (rot_y) * mult
-        
-        self.writeFloat(camAddr + 0x404, y) #roty
-        self.writeFloat(camAddr + 0x408, p) #rotx
-        self.writeFloat(camAddr + 0x40C, tilt) #tilt
+        self.writeFloat(camAddr + 0x404, rot_x * mult) #roty
+        self.writeFloat(camAddr + 0x408, rot_y * mult) #rotx
+        self.writeFloat(camAddr + 0x40C, rot_z * mult) #tilt
         
         self.writeFloat(camAddr + 0x39C, fov) #FOV
     
@@ -270,9 +294,9 @@ class TKDirect: #(Singleton):
         
         mult = pi / 180
         
-        rot_x = self.readFloat(camAddr + 0x404) * mult + pi / 2 #roty
-        rot_y = self.readFloat(camAddr + 0x408) * mult * -1 - pi / 2 #rotx
-        rot_z = 0#self.readFloat(camAddr + 0x40C, tilt) #tilt
+        rot_x = self.readFloat(camAddr + 0x404) * mult 
+        rot_y = self.readFloat(camAddr + 0x408) * mult
+        rot_z = self.readFloat(camAddr + 0x40C) * mult
         
         fov = self.readFloat(camAddr + 0x39C) / 57
         
@@ -306,13 +330,13 @@ class TKDirect: #(Singleton):
         self.setPlayerPos(self.p2_addr, playerPos['x'], playerPos['y'])
         
         
-    def previewPlayer(self, playerAddress, armature):
+    def previewPlayer(self, playerAddress, armature, preview_frame_anim):
         #self.VR.setIKFromVR(self.armature)
     
         animFrame = getAnimFrameFromBones(armature)
         
-        for i in range(self.preview_frame_anim.field_count):
-            self.preview_frame_anim.setField(animFrame[i], 0, i)
+        for i in range(preview_frame_anim.field_count):
+            preview_frame_anim.setField(animFrame[i], 0, i)
         
         rot = self.getArmatureYaw(armature)
         self.setPlayerYaw(playerAddress, rot)
@@ -332,24 +356,33 @@ class TKDirect: #(Singleton):
         if animAddr != None and self.T.readInt(animAddr, 1) == 0xC8:
             frame = self.T.readInt(playerAddress + self.game_addresses["curr_frame_timer_offset"], 4)
             frame = min(frame, self.T.readInt(animAddr + 4, 4))
-            type2 = self.T.readInt(animAddr + 2, 1)
+            bone_count = self.T.readInt(animAddr + 2, 1)
             
-            offset = {
-                0x17: 0x64,
-                0x19: 0x6C,
-                0x1B: 0x74,
-                0x1d: 0x7c,
-                0x1f: 0x80,
-                0x21: 0x8c,
-                0x23: 0x94,
-                0x31: 0xcc 
-            }[self.T.readInt(animAddr + 2, 1)]
-            frame_size = type2 * 0xC
+            offset = bone_count * 0x4 + 0x8
+            frame_size = bone_count * 0xC
             field_count = frame_size // 4
             
             start_addr = animAddr + offset + frame_size * (frame - 1)
             floats = [self.readFloat(start_addr + i * 4) for i in range(min(field_count, 69))]
             applyRotationFromAnimdata(armature, floats)
+        
+    def previewHand(self, playerAddress, armature, hand_anim, hand_anim_addr):
+        animFrame1, animFrame2 = getHandAnimFrameFromBones(armature)
+        
+        for i in range(0x39): #hand_anim[0].field_count - this is constant anyway
+            hand_anim[0].setField(animFrame1[i], 0, i)
+            hand_anim[1].setField(animFrame2[i], 0, i)
+            
+        self.T.writeBytes(hand_anim_addr[0], bytes(hand_anim[0].data))
+        self.T.writeBytes(hand_anim_addr[1], bytes(hand_anim[1].data))
+        
+    def previewFace(self, playerAddress, armature, face_anim, face_anim_addr, face_base_pose, characterId):
+        animFrame = getFaceAnimFrameFromBones(armature, face_base_pose, characterId)
+        
+        for i in range(0x10E): # this is constant anyway
+            face_anim.setField(animFrame[i], 0, i)
+            
+        self.T.writeBytes(face_anim_addr, bytes(face_anim.data))
         
     # -  - #
     
@@ -392,6 +425,81 @@ class TKDirect: #(Singleton):
             self.wrote_player_move = True
         else:
             self.wrote_player_move_2p = True
+            
+        if self.preview_hand: self.writePlayerHandAnim(playerid)
+            
+    def writePlayerHandAnim(self, playerid):
+        playerAddress = self.p1_addr if playerid == 0 else self.p2_addr
+        currmoveAddr = self.T.readInt(playerAddress + 0x220, 8)
+        extrapropAddr = self.T.readInt(currmoveAddr + 0x80, 8)
+        
+        animId1 = 0
+        animId2 = 1
+        
+        while True:
+            propId = self.T.readInt(extrapropAddr + 0x4, 4)
+            
+            if propId == 0: break
+            
+            if propId == 0x842E: #left hand
+                self.T.writeInt(extrapropAddr + 0x8, animId1, 4)
+            if propId == 0x842F: #right hand
+                self.T.writeInt(extrapropAddr + 0x8, animId2, 4)
+            
+            extrapropAddr += 0xC
+        
+        animAddr1 = self.getPlayerHandAnimAddr(playerid, animId1) #left
+        animAddr2 = self.getPlayerHandAnimAddr(playerid, animId2) #right
+        
+        if playerid == 0:
+            self.hand_anim_addr = [animAddr1, animAddr2]
+        else:
+            self.hand_anim_addr_2p = [animAddr1, animAddr2]
+            
+    def writePlayerFaceAnim(self, playerid):
+        playerAddress = self.p1_addr if playerid == 0 else self.p2_addr
+        currmoveAddr = self.T.readInt(playerAddress + 0x220, 8)
+        extrapropAddr = self.T.readInt(currmoveAddr + 0x80, 8)
+        
+        animId = 0
+        
+        while True:
+            propId = self.T.readInt(extrapropAddr + 0x4, 4)
+            
+            if propId == 0: break
+            if propId == 0x84c2: #face
+                self.T.writeInt(extrapropAddr + 0x8, animId, 4)
+            
+            extrapropAddr += 0xC
+        
+        animAddr = self.getPlayerFaceAnimAddr(playerid, animId)
+        
+        if playerid == 0:
+            self.face_anim_addr = animAddr
+        else:
+            self.face_anim_2p_addr = animAddr
+        
+    def getPlayerHandAnimAddr(self, playerid, animid):
+        playerAddress = self.p1_addr if playerid == 0 else self.p2_addr
+        
+        movesetAddr = self.T.readInt(playerAddress + self.game_addresses["t7_motbin_offset"], 8)
+        mota3Addr = self.T.readInt(movesetAddr + 0x290, 8)
+        
+        animlistOffset = 20
+        animOffset = self.T.readInt(mota3Addr + animlistOffset + 4 * animid, 4)
+        
+        return mota3Addr + animOffset
+        
+    def getPlayerFaceAnimAddr(self, playerid, animid):
+        playerAddress = self.p1_addr if playerid == 0 else self.p2_addr
+        
+        movesetAddr = self.T.readInt(playerAddress + self.game_addresses["t7_motbin_offset"], 8)
+        motaAddr = self.T.readInt(movesetAddr + 0x2a0, 8)
+        
+        animlistOffset = 20
+        animOffset = self.T.readInt(motaAddr + animlistOffset + 4 * animid, 4)
+        
+        return motaAddr + animOffset
         
     def getPlayerAnimAddr(self, playerAddress):
         currmoveAddr = self.T.readInt(playerAddress + 0x220, 8)
@@ -488,6 +596,51 @@ class TKDirect: #(Singleton):
         else:
             self.camera_tracking = False
             if not self.tracking and not self.preview: self.stop()
+     
+    def onHandLivePreviewChange(self, enabled):
+        if enabled:
+            if self.preview:
+                
+                if self.armature_name: self.writePlayerHandAnim(0)
+                if self.armature_name_2p: self.writePlayerHandAnim(1)
+                
+                self.preview_hand = True
+            else:
+                self.preview_hand = False
+        else:
+            self.preview_hand = False
+     
+    def onFaceLivePreviewChange(self, enabled):
+        if enabled:
+            if self.preview:
+                
+                self.characterId = self.T.readInt(self.p1_addr + 0xD8, 1)
+                self.face_base_pose = getCharacterFacePos(self.characterId)
+                
+                if self.armature_name: self.writePlayerFaceAnim(0)
+                
+                self.preview_face = True
+            else:
+                self.preview_face = False
+        else:
+            self.preview_face = False
+     
+    def on2pFaceLivePreviewChange(self, enabled):
+        if enabled:
+            if self.preview:
+                
+                self.characterId_2p = self.T.readInt(self.p2_addr + 0xD8, 1)
+                self.face_base_pose_2p = getCharacterFacePos(self.characterId_2p)
+                
+                if self.armature_name_2p: self.writePlayerFaceAnim(1)
+                
+                self.preview_face_2p = True
+            else:
+                self.preview_face_2p = False
+        else:
+            self.preview_face_2p = False
+     
+    # --
             
     def setDistanceLimit(self, disabled):
         if not self.running: return

@@ -44,9 +44,31 @@ def onAttachPlayerChange(self, context):
 checkboxes = [
     {
         "var_name": "tekken_live_preview",
-        "name": "Live preview (Blender -> Game)",
+        "name": "Live preview",
         "default": False,
         "callback": onLivePreviewChange
+    },
+    
+    {
+        "var_name": "tekken_live_hand_preview",
+        "name": "Live hand",
+        "default": False,
+        "callback": lambda s, c: TK.onHandLivePreviewChange(s.tekken_live_hand_preview) 
+    },
+    
+    {
+        "var_name": "tekken_live_face_preview",
+        "name": "(1P) Live face",
+        "default": False,
+        "callback": lambda s, c: TK.onFaceLivePreviewChange(s.tekken_live_face_preview) 
+    },
+    
+    
+    {
+        "var_name": "tekken_live_face_2p_preview",
+        "name": "(2P) Live face",
+        "default": False,
+        "callback": lambda s, c: TK.on2PFaceLivePreviewChange(s.tekken_live_face_2p_preview) 
     },
     
     {
@@ -108,21 +130,15 @@ def init_variables():
     
 # --- Btns --- #
 
-# PLACEHOLDER
-class PLACEHOLDER_YES(bpy.types.Operator):
-    bl_idname = "tekken.yes"
-    bl_label = "Yes"
+"""
+class debugBtn(bpy.types.Operator):
+    bl_idname = "tekken.debug_btn"
+    bl_label = "1P - Set face anim 0"
     
     def execute(self, context):
+        TK.writePlayerFaceAnim(0)
         return {'FINISHED'}
-    
-# PLACEHOLDER
-class PLACEHOLDER_NO(bpy.types.Operator):
-    bl_idname = "tekken.no"
-    bl_label = "No"
-    
-    def execute(self, context):
-        return {'FINISHED'}
+"""
 
 # 1p Allow head movement
 class AllowHeadMovementBtn(bpy.types.Operator):
@@ -149,9 +165,11 @@ class SetActiveSkeletonBtn(bpy.types.Operator):
     
     def execute(self, context):
         if context.object.type == 'ARMATURE':
-            TK.setActiveSkeleton(0, context.active_object.name)
-            context.active_object.show_name = True
-            self.report({'INFO'}, "New armature selected")
+            if context.active_object.name == TK.armature_name_2p:
+                self.report({'INFO'}, "(1p) Already in use by 2p")
+            else:
+                TK.setActiveSkeleton(0, context.active_object.name)
+                self.report({'INFO'}, "New armature selected")
         else:
             self.report({'INFO'}, "(1p) Not a valid armature")
             TK.armature_name = None
@@ -165,9 +183,11 @@ class Set2pActiveSkeletonBtn(bpy.types.Operator):
     
     def execute(self, context):
         if context.object.type == 'ARMATURE':
-            TK.setActiveSkeleton(1, context.active_object.name)
-            context.active_object.show_name = True
-            self.report({'INFO'}, "New 2P armature selected")
+            if context.active_object.name == TK.armature_name:
+                self.report({'INFO'}, "(1p) Already in use by 1p")
+            else:
+                TK.setActiveSkeleton(1, context.active_object.name)
+                self.report({'INFO'}, "New 2P armature selected")
         else:
             self.report({'INFO'}, "(2p) Not a valid armature")
             TK.armature_name_2p = None
@@ -180,8 +200,12 @@ class SetActiveCamera(bpy.types.Operator):
     
     def execute(self, context):
         if context.object.type == 'CAMERA':
-            context.scene.objects[context.active_object.name].data.lens_unit = 'FOV'
-            context.scene.objects[context.active_object.name].data.angle = 1
+            cam = context.scene.objects[context.active_object.name]
+            cam.data.lens_unit = 'FOV'
+            cam.data.angle = 1
+            cam.rotation_mode = "YZX"
+            x, y, z = cam.rotation_euler
+            cam.rotation_euler = (x, y, 0)
             
             TK.camera_name = context.active_object.name
             self.report({'INFO'}, "New camera selected")
@@ -203,13 +227,19 @@ class TekkenPanel(bpy.types.Panel):
         
         # Live tracking #
         
+        l.label(text='- Tracking (Game - Blender) -')
         l.prop(context.scene, "tekken_live_tracking")
+        
+        l.label(text='- Previews (Blender -> Game) -')
         l.prop(context.scene, "tekken_live_preview")
+        l.prop(context.scene, "tekken_live_hand_preview")
+        l.prop(context.scene, "tekken_live_face_preview")
+        l.prop(context.scene, "tekken_live_face_2p_preview")
         
         l.label(text='____________________________________')
         
         # Live preview #
-        
+        #l.operator(debugBtn.bl_idname) #to remove
         
         l.operator(SetActiveSkeletonBtn.bl_idname)
         l.operator(AllowHeadMovementBtn.bl_idname)
@@ -234,8 +264,8 @@ class TekkenPanel(bpy.types.Panel):
 # --- Registering --- #
 
 classes = [
-    PLACEHOLDER_YES,
-    PLACEHOLDER_NO,
+    #debugBtn, #to remove
+    
     SetActiveSkeletonBtn,
     Set2pActiveSkeletonBtn,
     AllowHeadMovementBtn,
