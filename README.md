@@ -1,7 +1,7 @@
 # BlenderTekkenDirect
 
-Preview animations in Tekken 7 live from blender. Eventually will be able to save them.
-You need to be working on the specific provided model in the following link for things to work: https://mega.nz/folder/05pBGLAL#XPHcsgK2tBxT3RLMbZPaFw
+Preview animations in Tekken 7 live from blender. Supports live body animation, live face animation and live hand animations (check the Armature layers for each animatable part)
+You need to be working on one the specific models provided in the following link for it to work: https://mega.nz/folder/05pBGLAL#XPHcsgK2tBxT3RLMbZPaFw
 
 ![Pose comparison preview](https://i.imgur.com/5v6e0Xi.jpg)
 
