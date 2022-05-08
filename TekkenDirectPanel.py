@@ -12,7 +12,16 @@ class TekkenDirect:
         pass
 """
 
-TK = TKDirect()
+def onStop():
+    bpy.context.scene["tekken_live_preview"] = False
+    bpy.context.scene["tekken_live_hand_preview"] = False
+    bpy.context.scene["tekken_live_face_preview"] = False
+    bpy.context.scene["tekken_live_face_2p_preview"] = False
+    bpy.context.scene["tekken_live_tracking"] = False
+    bpy.context.scene["tekken_camera_preview"] = False
+    bpy.context.scene["tekken_camera_track"] = False
+    
+TK = TKDirect(onStop)
 
 # --- Callback --- #
 
@@ -204,8 +213,6 @@ class SetActiveCamera(bpy.types.Operator):
             cam.data.lens_unit = 'FOV'
             cam.data.angle = 1
             cam.rotation_mode = "YZX"
-            x, y, z = cam.rotation_euler
-            cam.rotation_euler = (x, y, 0)
             
             TK.camera_name = context.active_object.name
             self.report({'INFO'}, "New camera selected")
@@ -216,7 +223,7 @@ class SetActiveCamera(bpy.types.Operator):
 # --- Main panel --- #
 
 class TekkenPanel(bpy.types.Panel):
-    
+    bl_category = "Tekken"
     bl_idname = "VIEW3D_PT_tekken"
     bl_label = 'Tekken Direct'
     bl_space_type = 'VIEW_3D'

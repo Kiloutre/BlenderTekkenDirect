@@ -2,7 +2,6 @@ import struct
 import bpy
 import numpy as np
 from math import pi, asin, atan2
-from .characterFaces import getCharacterFacePos
 from copy import deepcopy
 
 halfpi = pi / 2
@@ -193,8 +192,7 @@ class TekkenAnimation:
         return self.getOffset() + (self.getFramesize() * self.length)
         
     def getOffset(self):
-        if self.type == 0xC8:
-            return self.bone_count * 0x4 + 0x8
+        return self.bone_count * 0x4 + 0x8
         
     def getFramesize(self):
         return self.bone_count * 0xC #= * 3 fields * 4 bytes each
@@ -245,7 +243,7 @@ class TekkenAnimation:
         if fieldId > self.field_count:
             raise
         self.writeFloat(value, self.offset + (frame * self.frame_size) + (4 * fieldId))
-             
+            
 def __get_visual_rotations__(armature, bones):
     poses = {}
     for prefix in ["L_", "R_"]: # set default values
@@ -883,7 +881,7 @@ def getBoneRot(boneName, rotation, defaultBonePos):
             y + defaultBonePos['rot_y'],
             z + defaultBonePos['rot_z'])
 
-def getFaceAnimFrameFromBones(armature, face_base_pose, characterId):
+def getFaceAnimFrameFromBones(armature, face_base_pose):
 
     bones = armature.pose.bones
     correctedBones = deepcopy(face_base_pose)
@@ -899,6 +897,12 @@ def getFaceAnimFrameFromBones(armature, face_base_pose, characterId):
         correctedBones[boneName]['rot_y'] = y
         correctedBones[boneName]['rot_z'] = z
 
+
+    """
+    Bero1_Joint_scale_x = bones["Bero1_Joint"].scale.x
+    Bero1_Joint_scale_y = bones["Bero1_Joint"].scale.y
+    Bero1_Joint_scale_z = bones["Bero1_Joint"].scale.z
+    
 
     Bero2_Joint_x = bones["Bero2_Joint"].location.x * 1000
     Bero2_Joint_y = bones["Bero2_Joint"].location.y * 1000
@@ -920,6 +924,11 @@ def getFaceAnimFrameFromBones(armature, face_base_pose, characterId):
     Bero3_Joint_rot_x = bones["Bero3_Joint"].rotation_euler.x
     Bero3_Joint_rot_y = bones["Bero3_Joint"].rotation_euler.y
     Bero3_Joint_rot_z = bones["Bero3_Joint"].rotation_euler.z
+
+    Bero3_Joint_scale_x = bones["Bero3_Joint"].scale.x
+    Bero3_Joint_scale_y = bones["Bero3_Joint"].scale.y
+    Bero3_Joint_scale_z = bones["Bero3_Joint"].scale.z
+    """
     
     return [
         correctedBones["L_Mayu1_Joint"]["x"], #L_Mayu1_Joint
@@ -1227,39 +1236,21 @@ def getFaceAnimFrameFromBones(armature, face_base_pose, characterId):
         0,
         0,
 
+        0,
+        0,
+        0,
 
         0,
         0,
         0,
-        0,
-        0,
-        0,
-        #Bero1_Joint_pos_x,
-        #Bero1_Joint_pos_y,
-        #Bero1_Joint_pos_z,
-        #Bero1_Joint_pos_rot_x,
-        #Bero1_Joint_pos_rot_y,
-        #Bero1_Joint_pos_rot_z,
-
-        Bero2_Joint_scale_x, #Bero2_Joint #scale
-        Bero2_Joint_scale_y,  #scale
-        Bero2_Joint_scale_z,  #scale
-        Bero2_Joint_x, #pos
-        Bero2_Joint_y, #pos
-        Bero2_Joint_z, #pos
 
         0,
         0,
         0,
+
         0,
         0,
         0,
-        #Bero3_Joint_x, #Bero3_Joint
-        #Bero3_Joint_y,
-        #Bero3_Joint_z,
-        #Bero3_Joint_rot_x,
-        #Bero3_Joint_rot_y,
-        #Bero3_Joint_rot_z,
     ]
 
 def applyRotationFromAnimdata(armature, animdata):

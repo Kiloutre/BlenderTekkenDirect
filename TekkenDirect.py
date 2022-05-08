@@ -12,9 +12,10 @@ from math import pi
 import traceback
 
 class TKDirect: #(Singleton):
-    def __init__(self):
+    def __init__(self, onStopFunc=None):
         self.running = False
         self.game_addresses = AddressFile(pathlib.Path(__file__).parent.resolve().__str__() + "\\game_addresses.txt")
+        self.onStop = onStopFunc
         
         self.update_delay = 1/30 #30 times per second
         
@@ -50,7 +51,6 @@ class TKDirect: #(Singleton):
         self.face_anim = TekkenAnimation(type="face")
         self.face_anim_addr = None
         self.face_base_pose = None
-        self.characterId = None
         
         self.allocated_frame_anim_2p = None
         self.wrote_player_move_2p = False
@@ -60,7 +60,6 @@ class TKDirect: #(Singleton):
         self.face_anim_2p = TekkenAnimation(type="face")
         self.face_anim_2p_addr = None
         self.face_base_pose_2p = None
-        self.characterId_2p = None
         
     # -- #
         
@@ -111,7 +110,7 @@ class TKDirect: #(Singleton):
                             self.previewHand(self.p1_addr, self.armature, self.hand_anim, self.hand_anim_addr)
                             
                         if self.preview_face:
-                            self.previewFace(self.p1_addr, self.armature, self.face_anim, self.face_anim_addr, self.face_base_pose, self.characterId)
+                            self.previewFace(self.p1_addr, self.armature, self.face_anim, self.face_anim_addr, self.face_base_pose)
                         
                         #less byts written
                         #offset = self.preview_frame_anim.offset
@@ -134,7 +133,7 @@ class TKDirect: #(Singleton):
                             self.previewHand(self.p2_addr, self.armature_2p, self.hand_anim_2p, self.hand_anim_2p_addr)
                             
                         if self.preview_face_2p:
-                            self.previewFace(self.p2_addr, self.armature_2p, self.face_anim_2p, self.face_anim_2p_addr, self.face_base_pose_2p, self.characterId_2p)
+                            self.previewFace(self.p2_addr, self.armature_2p, self.face_anim_2p, self.face_anim_2p_addr, self.face_base_pose_2p)
                     
                 # camera
                 if self.camera_name != None:
@@ -172,8 +171,16 @@ class TKDirect: #(Singleton):
         self.running = False
         self.preview = False
         self.tracking = False
+        self.preview_face = False
+        self.preview_face_2p = False
+        self.camera_preview = False
+        self.camera_tracking = False
+        self.preview_hand = False
+        
         self.T.close()
         self.T = None
+        
+        if self.onStop != None: self.onStop()
         
     # - Utils - #
     
@@ -376,8 +383,8 @@ class TKDirect: #(Singleton):
         self.T.writeBytes(hand_anim_addr[0], bytes(hand_anim[0].data))
         self.T.writeBytes(hand_anim_addr[1], bytes(hand_anim[1].data))
         
-    def previewFace(self, playerAddress, armature, face_anim, face_anim_addr, face_base_pose, characterId):
-        animFrame = getFaceAnimFrameFromBones(armature, face_base_pose, characterId)
+    def previewFace(self, playerAddress, armature, face_anim, face_anim_addr, face_base_pose):
+        animFrame = getFaceAnimFrameFromBones(armature, face_base_pose)
         
         for i in range(0x10E): # this is constant anyway
             face_anim.setField(animFrame[i], 0, i)
@@ -405,10 +412,6 @@ class TKDirect: #(Singleton):
         
         self.T.writeBytes(self.allocated_frame_anim, bytes(self.preview_frame_anim.data))
         self.T.writeBytes(self.allocated_frame_anim_2p, bytes(self.preview_frame_anim_2p.data))
-        
-        
-        print("(1p) Allocated new anim: 0x%x" % (self.allocated_frame_anim))
-        print("(2p) Allocated new anim: 0x%x" % (self.allocated_frame_anim_2p))
 
     def writePlayerMove(self, playerid):
         if playerid == 0 and self.wrote_player_move: return
@@ -435,19 +438,50 @@ class TKDirect: #(Singleton):
         
         animId1 = 0
         animId2 = 1
+        found = [False, False]
+        
+        extrapropAddr_start = extrapropAddr
         
         while True:
             propId = self.T.readInt(extrapropAddr + 0x4, 4)
-            
             if propId == 0: break
             
             if propId == 0x842E: #left hand
                 self.T.writeInt(extrapropAddr + 0x8, animId1, 4)
+                if not found[0]:
+                    self.T.writeInt(extrapropAddr, 1, 4) #frame: 1
+                    found[0] = True
+                    
             if propId == 0x842F: #right hand
                 self.T.writeInt(extrapropAddr + 0x8, animId2, 4)
-            
+                if not found[1]:
+                    self.T.writeInt(extrapropAddr, 1, 4) #frame: 1
+                    found[1] = True
+                    
             extrapropAddr += 0xC
         
+        if not found[0] or not found[1]:
+            extraSize = int(found[0]) + int(found[1])
+            extrapropSize = extrapropAddr - extrapropAddr_start
+            
+            newExtraprop = self.T.allocateMem(extrapropSize + extraSize * 0xC + 0xC)
+            self.T.writeBytes(newExtraprop, self.T.readBytes(extrapropAddr_start, extrapropSize))
+            
+            targetWriteAddr = newExtraprop + extrapropSize
+            if found[0]:
+                self.T.writeInt(targetWriteAddr, 1, 4)
+                self.T.writeInt(targetWriteAddr + 4, 0x842E, 4)
+                self.T.writeInt(targetWriteAddr + 8, animId1, 4)
+                targetWriteAddr += 0xC
+            if found[1]:
+                self.T.writeInt(targetWriteAddr, 1, 4)
+                self.T.writeInt(targetWriteAddr + 4, 0x842F, 4)
+                self.T.writeInt(targetWriteAddr + 8, animId2, 4)
+                targetWriteAddr += 0xC
+            self.T.writeBytes(targetWriteAddr, bytes([0] * 0xC))
+            
+            self.T.writeInt(currmoveAddr + 0x80, newExtraprop, 8)
+            
         animAddr1 = self.getPlayerHandAnimAddr(playerid, animId1) #left
         animAddr2 = self.getPlayerHandAnimAddr(playerid, animId2) #right
         
@@ -462,6 +496,9 @@ class TKDirect: #(Singleton):
         extrapropAddr = self.T.readInt(currmoveAddr + 0x80, 8)
         
         animId = 0
+        found = False
+        
+        extrapropAddr_start = extrapropAddr
         
         while True:
             propId = self.T.readInt(extrapropAddr + 0x4, 4)
@@ -469,8 +506,24 @@ class TKDirect: #(Singleton):
             if propId == 0: break
             if propId == 0x84c2: #face
                 self.T.writeInt(extrapropAddr + 0x8, animId, 4)
-            
+                if not found:
+                    self.T.writeInt(extrapropAddr, 1, 4) #frame: 1
+                    found = True
             extrapropAddr += 0xC
+        
+        if not found:
+            extrapropSize = extrapropAddr - extrapropAddr_start
+            
+            newExtraprop = self.T.allocateMem(extrapropSize + 0xC + 0xC)
+            self.T.writeBytes(newExtraprop, self.T.readBytes(extrapropAddr_start, extrapropSize))
+            
+            targetWriteAddr = newExtraprop + extrapropSize #- 0xC
+            self.T.writeInt(targetWriteAddr, 0x8001, 4)
+            self.T.writeInt(targetWriteAddr + 4, 0x84c2, 4)
+            self.T.writeInt(targetWriteAddr + 8, animId, 4)
+            self.T.writeBytes(targetWriteAddr + 0xC, bytes([0] * 0xC))
+            
+            self.T.writeInt(currmoveAddr + 0x80, newExtraprop, 8)
         
         animAddr = self.getPlayerFaceAnimAddr(playerid, animId)
         
@@ -614,8 +667,8 @@ class TKDirect: #(Singleton):
         if enabled:
             if self.preview:
                 
-                self.characterId = self.T.readInt(self.p1_addr + 0xD8, 1)
-                self.face_base_pose = getCharacterFacePos(self.characterId)
+                characterId = self.T.readInt(self.p1_addr + self.game_addresses["t7_chara_id_offset"], 1)
+                self.face_base_pose = getCharacterFacePos(characterId)
                 
                 if self.armature_name: self.writePlayerFaceAnim(0)
                 
@@ -629,8 +682,8 @@ class TKDirect: #(Singleton):
         if enabled:
             if self.preview:
                 
-                self.characterId_2p = self.T.readInt(self.p2_addr + 0xD8, 1)
-                self.face_base_pose_2p = getCharacterFacePos(self.characterId_2p)
+                characterId_2p = self.T.readInt(self.p2_addr + self.game_addresses["t7_chara_id_offset"], 1)
+                self.face_base_pose_2p = getCharacterFacePos(characterId_2p)
                 
                 if self.armature_name_2p: self.writePlayerFaceAnim(1)
                 
