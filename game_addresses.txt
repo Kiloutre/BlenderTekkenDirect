@@ -88,6 +88,8 @@ code_injection_addr          = +0x746C2F                      # Address that wri
 playerid_ptr                 = +0x34E71B8, 0x10, 0x28, 0xF74  # Used to find whether local player is 1P or 2P; used for online play
 #Finding playerid_starting_ptr: Go in training mode as 2p; scan for value on 1. Change to 1P; scan for value on 0. Repeat many times to lower matches to a few hundreds. Do combo; grabs and change outfit & character to keep lowering matches.
 #Scan repeatedly value between 0 and 1 during loading to filter out the remaining garbage. Then pause the process (slow to 0.00); set all remaining variables to a fringe unique value (e.g. 216246545) and search for the following pointer path that leads to the fringe value (68 is last offset!): 0; 0; 68.
+
+# blender tools
 player_distance_limit_addr   = +0x6E269E
 player_collision_code_addr   = +0x6D4515
 wall_collision_code_addr     = +0x792B04 #writes negative values on [player + 1308]

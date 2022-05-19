@@ -353,14 +353,24 @@ def convertCameraToBlenderRot(x, y, z):
     
     return -x + pi, -z, y
              
-def getAnimFrameFromBones(armature):
+def getAnimFrameFromBones(armature, keepEndPos=False):
     bones = armature.pose.bones
     
     visualRots = __get_visual_rotations__(armature, bones)
 
-    offset1 = -(bones["BODY_SCALE__group"].location[2] * 1000)
-    offset2 = (bones["BODY_SCALE__group"].location[1]) * 1000 + 1150
-    offset3 = bones["BODY_SCALE__group"].location[0] * 1000
+    position = [
+        -(bones["BODY_SCALE__group"].location.z * 1000),
+        (bones["BODY_SCALE__group"].location.y) * 1000 + 1150,
+        bones["BODY_SCALE__group"].location.x * 1000
+    ]
+    
+    if keepEndPos == 0:
+        movement1, movement2, movement3 = 0, 0, 0
+        offset1, offset2, offset3 = position
+    else:
+        movement1, movement2, movement3 = position
+        offset1, offset2, offset3 = 0, 0, 0
+    
     RotX = bones["BASE"].rotation_euler.z * -1
     RotY = bones["BASE"].rotation_euler.y
     RotZ = bones["BASE"].rotation_euler.x 
@@ -481,18 +491,16 @@ def getAnimFrameFromBones(armature):
     
     # ------ end --------
     
-    _DEF_VAL_TEST = 0 #default value for stuff we don't know or care about
-    
     return [
-        _DEF_VAL_TEST, #Offset = movement x
-        _DEF_VAL_TEST, #Offset = height
-        _DEF_VAL_TEST, #Offset = movement z
+        movement1, #Offset = movement x
+        movement2, #Offset = height
+        movement3, #Offset = movement z
         offset1, #JumpStrength = pos x
         offset2, #JumpStrength = pos y
         offset3, #JumpStrength = pos Z
-        _DEF_VAL_TEST, #Unknown = field 7
-        _DEF_VAL_TEST, #Unknown = field 8
-        _DEF_VAL_TEST, #Unknown = field 9
+        0, #Unknown = field 7
+        0, #Unknown = field 8
+        0, #Unknown = field 9
         RotX, #Mesh = rotx
         RotY, #Mesh = roty
         RotZ, #Mesh = rotz
@@ -502,9 +510,9 @@ def getAnimFrameFromBones(armature):
         LowerBody1, # = hip x
         LowerBody2, # = hip y
         LowerBody3, # = hip z
-        _DEF_VAL_TEST, #SpineFlexure # = spine 2
-        _DEF_VAL_TEST, #SpineFlexure # = field 20
-        _DEF_VAL_TEST, #SpineFlexure # = field 21
+        0, #SpineFlexure # = spine 2
+        0, #SpineFlexure # = field 20
+        0, #SpineFlexure # = field 21
         Neck1, # = neck 22
         Neck2, # = neck 23
         Neck3, # = neck 24
