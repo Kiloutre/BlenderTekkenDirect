@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'TekkenDirect',
     'category': 'Animation',
-    'version': (0, 0, 1),
+    'version': (1, 1, 0),
     'blender': (2, 80, 0)
 }
 
