@@ -359,17 +359,23 @@ def getAnimFrameFromBones(armature, keepEndPos=False):
     visualRots = __get_visual_rotations__(armature, bones)
 
     position = [
-        -(bones["BODY_SCALE__group"].location.z * 1000),
-        (bones["BODY_SCALE__group"].location.y) * 1000 + 1150,
-        bones["BODY_SCALE__group"].location.x * 1000
+        -(bones["BODY_SCALE__group"].location.z * 1000), #x
+        #(bones["BODY_SCALE__group"].location.y) * 1000, y
+        bones["BODY_SCALE__group"].location.x * 1000 #z
     ]
     
+    offset1 = 0
+    offset2 = 1150 + (bones["BODY_SCALE__group"].location.y) * 1000
+    offset3 = 0
+    
+    movement1 = 0
+    #movement2 = 0
+    movement3 = 0
+    
     if keepEndPos == 0:
-        movement1, movement2, movement3 = 0, 0, 0
-        offset1, offset2, offset3 = position
+        offset1, offset3 = position
     else:
-        movement1, movement2, movement3 = position
-        offset1, offset2, offset3 = 0, 0, 0
+        movement1, movement3 = position
     
     RotX = bones["BASE"].rotation_euler.z * -1
     RotY = bones["BASE"].rotation_euler.y
@@ -493,7 +499,7 @@ def getAnimFrameFromBones(armature, keepEndPos=False):
     
     return [
         movement1, #Offset = movement x
-        movement2, #Offset = height
+        0, #movement2, #Offset = height
         movement3, #Offset = movement z
         offset1, #JumpStrength = pos x
         offset2, #JumpStrength = pos y
@@ -1290,6 +1296,12 @@ def applyRotationFromAnimdata(armature, animdata):
     offset_bone.location.x = animdata[3] / 1000
     offset_bone.location.y = animdata[4] / 1000 - 1.15
     offset_bone.location.z = animdata[5] / 1000
+    
+    #movement, Y seems unused
+    offset_bone.location.x += animdata[0] / 1000
+    #offset_bone.location.y += animdata[1] / 1000
+    offset_bone.location.z += -animdata[2] / 1000
+    #
 
     base_bone.rotation_euler.x = animdata[11]
     base_bone.rotation_euler.y = animdata[10]
