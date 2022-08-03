@@ -10,8 +10,8 @@ You need to be working on one the specific models provided in the following link
 
 1. Download the project as a .zip.
 2. Rename the .zip precisely as **BlenderTekkenDirect.zip**
-- Manual: Extract the archive so that it creates a folder here: **AppData\Roaming\Blender Foundation\Blender\2.92\scripts\addons**. Make sure the folder is correctly named **BlenderTekkenDirect** 
-- Automatic: Open Blender,go to **Edit -> Preferences**, in the newly opened window go to the **Addons** tab, click **Install** and select the .zip you downloaded earlier
+- Manual: Extract the archive so that it creates a folder here: **AppData\Roaming\Blender Foundation\Blender\VERSION\scripts\addons**. Make sure the folder is correctly named **BlenderTekkenDirect** 
+- Automatic: Open Blender,go to **Edit -> Preferences**, in the newly opened window go to the **Addons** tab, click **Install** and select the .zip you downloaded earlier. If you get a 'No module named BlenderTekkenDirect' error, make sure the BlenderTekkenDirect directory in **AppData\Roaming\Blender Foundation\Blender\VERSION\scripts\addons** does not have a different name than **BlenderTekkenDirect**
 3. An new tab should now appear at the corner of the 3d viewport
 4. If the addon is still not appearing, make sure it is enabled in **Edit -> Preferences -> Add-ons**
 
