@@ -351,6 +351,133 @@ class TKDirect: #(Singleton):
         x, y, z = self.getArmaturePos(armature)
         self.setPlayerPos(playerAddress, x * 1000, -y * 1000)
         self.setPlayerFloorHeight(playerAddress, z * 1000)
+        
+    def getFrameFloats(self, animAddr, frame):
+        type = self.T.readInt(animAddr, 1)
+        bone_count = self.T.readInt(animAddr + 2, 1)
+        
+        if type == 0xC8:
+            max_length = self.T.readInt(animAddr + 4, 4)
+            frame = min(frame, max_length)
+            
+            offset = bone_count * 0x4 + 0x8
+            frame_size = bone_count * 0xC
+            field_count = frame_size // 4
+            
+            start_addr = animAddr + offset + frame_size * (frame - 1)
+            return [self.readFloat(start_addr + i * 4) for i in range(min(field_count, 69))]
+        else:
+            b = []
+            baseAddr = 0x000000EC204CB3C0
+            for i in range (0x17 * 3):
+                addr = baseAddr + 4 * i
+                b.append(self.readFloat(addr))
+            return b
+            
+            __unknown__ = self.T.readInt(animAddr + 4 + bone_count * 2 + 4, 2)
+            offset = animAddr + 4 + (bone_count * 2) + 6 + (4 * __unknown__)
+            
+            if bone_count > 23: bone_count = 23
+            
+            mult = (pi * 2) / 65535
+            
+            fieldLabels = {
+                0: 'Movement X',
+                1: 'Height',
+                2: 'Movement Z',
+                3: 'Pos X',
+                4: 'Pos Y (Height2)',
+                5: 'Pos Z',
+                6: 'Field 7',
+                7: 'Field 8',
+                8: 'Field 9',
+                9: 'Rot X',
+                10: 'Rot Y',
+                11: 'Rot Z',
+                12: 'Spine 1 X',
+                13: 'Spine 1 Y',
+                14: 'Spine 1 Z',
+                15: 'Hip X',
+                16: 'Hip Y',
+                17: 'Hip Z',
+                18: 'Spine 2',
+                19: 'Field 20',
+                20: 'Field 21',
+                21: 'Neck 22',
+                22: 'Neck 23',
+                23: 'Neck 24',
+                24: 'Neck 25',
+                25: 'Neck 26',
+                26: 'Neck 27',
+                27: 'Right Inner Shoulder X',
+                28: 'Right Inner Shoulder Y',
+                29: 'Right Inner Shoulder Z',
+                30: 'Right Outer Shoulder X',
+                31: 'Right Outer Shoulder Y',
+                32: 'Right Arm X',
+                33: 'Right Elbow X',
+                34: 'Right Elbow Y',
+                35: 'Right Elbow Z',
+                36: 'Right Hand 3',
+                37: 'Right Hand 4',
+                38: 'Right Hand 5',
+                39: 'Left Inner Shoulder X',
+                40: 'Left Inner Shoulder Y',
+                41: 'Left Inner Shoulder Z',
+                42: 'Left Outer Shoulder X',
+                43: 'Left Outer Shoulder Y',
+                44: 'Left Arm X',
+                45: 'Left Elbow X',
+                46: 'Left Elbow Y',
+                47: 'Left Elbow Z',
+                48: 'Left Hand 3',
+                49: 'Left Hand 4',
+                50: 'Left Hand 5',
+                51: 'Right Upleg',
+                52: 'Right Upleg',
+                53: 'Right Upleg',
+                54: 'Right Foot',
+                55: 'Right Upleg',
+                56: 'Right Leg',
+                57: 'Right Foot',
+                58: 'Right Foot',
+                59: 'Right Foot',
+                60: 'Left Upleg',
+                61: 'Left Upleg',
+                62: 'Left Upleg',
+                63: 'Left Foot',
+                64: 'Left Upleg',
+                65: 'Left Leg',
+                66: 'Left Foot',
+                67: 'Left Foot',
+                68: 'Left Foot'
+            }
+            
+            arr = []
+            for i in range(bone_count):
+                bone_type = self.T.readInt(animAddr + 4 + i * 2, 2)
+                if bone_type - 4 < 4:
+                    tmparr = []
+                    for _ in range(3):
+                        val = self.T.readInt(offset, 2)
+                        origval = val
+                        if val > 32767: val = -(65535 - val) - 1
+                        val *= (pi * 2) / 65535
+                        id = i * 3 + _
+                        print("[%02x] %-22s / %04x / %.03f " % (offset - animAddr, fieldLabels[id], origval, val))
+                        arr.append(val)
+                        offset += 0x2
+                    print()
+                else:
+                    for _ in range(3):
+                        arr.append(self.readFloat(offset))
+                        id = i * 3 + _
+                        print("%s" % (fieldLabels[id]))
+                        offset += 0x4
+                    print()
+            print()
+            print()
+            return arr
     
     def trackPlayer(self, playerAddress, armature):
         pos = self.getPlayerPos(playerAddress)
@@ -360,17 +487,9 @@ class TKDirect: #(Singleton):
         self.setArmatureYaw(armature, yaw)
         
         animAddr = self.getPlayerAnimAddr(playerAddress)
-        if animAddr != None and self.T.readInt(animAddr, 1) == 0xC8:
+        if animAddr != None:
             frame = self.T.readInt(playerAddress + self.game_addresses["curr_frame_timer_offset"], 4)
-            frame = min(frame, self.T.readInt(animAddr + 4, 4))
-            bone_count = self.T.readInt(animAddr + 2, 1)
-            
-            offset = bone_count * 0x4 + 0x8
-            frame_size = bone_count * 0xC
-            field_count = frame_size // 4
-            
-            start_addr = animAddr + offset + frame_size * (frame - 1)
-            floats = [self.readFloat(start_addr + i * 4) for i in range(min(field_count, 69))]
+            floats = self.getFrameFloats(animAddr, frame)
             applyRotationFromAnimdata(armature, floats)
         
     def previewHand(self, playerAddress, armature, hand_anim, hand_anim_addr):
@@ -698,16 +817,16 @@ class TKDirect: #(Singleton):
     def setDistanceLimit(self, disabled):
         if not self.running: return
         if disabled:
-            self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0xE9, 0x76, 0x01, 0x00, 0x00, 0x90])
+            self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0xE9, 0x61, 0x03, 0x00, 0x00, 0x90])
         else:
-            self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0x0F, 0x86, 0x75, 0x01, 0x00, 0x00])
+            self.T.writeBytes(self.game_addresses["player_distance_limit_addr"], [0x0F, 0x86, 0x60, 0x03, 0x00, 0x00])
     
     def setPlayerCollision(self, disabled):
         if not self.running: return
         if disabled:
             self.T.writeBytes(self.game_addresses["player_collision_code_addr"], [0xE9, 0xE0, 0x00, 0x00, 0x00])
         else:
-            self.T.writeBytes(self.game_addresses["player_collision_code_addr"], [0x75, 0x16, 0x0F, 0x2E, 0xB3])
+            self.T.writeBytes(self.game_addresses["player_collision_code_addr"], [0x75, 0x16, 0x0F, 0x2E, 0xB3]) #jnz followed by ucomiss
     
     def setWallCollision(self, disabled):
         if not self.running: return
