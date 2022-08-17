@@ -367,6 +367,7 @@ class TKDirect: #(Singleton):
             start_addr = animAddr + offset + frame_size * (frame - 1)
             return [self.readFloat(start_addr + i * 4) for i in range(min(field_count, 69))]
         else:
+
             __unknown__ = self.T.readInt(animAddr + 4 + bone_count * 2 + 4, 2)
             offset = animAddr + 4 + (bone_count * 2) + 6 + (4 * __unknown__)
             
