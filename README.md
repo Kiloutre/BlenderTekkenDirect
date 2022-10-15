@@ -34,4 +34,4 @@ Run the script named **CopyWin32ToBlender.bat** as administrator. It will instal
 - pywin32.version
 - Pythonwin
 
-4. Pywin32 should now be installed on blender, the addon will now work
+Pywin32 should now be installed on blender, the addon will now work
