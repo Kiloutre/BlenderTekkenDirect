@@ -286,6 +286,23 @@ def getEulerVisualRotation(boneName, armatureName):
     return local_diff.to_quaternion().to_euler(bone_pose.rotation_mode)
     
 # expects x y z blender rotation, outputs tekken rotation
+def test(x, y, z, val1, val2, val3):
+    x, y, z = -x, -z, y
+    
+    orig_quat = get_quaternion_from_euler(val1, val2, val3)
+    orig_mat = quaternionToRotationMatrix(orig_quat)
+    orig_mat = np.linalg.inv(orig_mat)
+
+    quat = get_quaternion_from_euler(x, y, z)
+    mat = quaternionToRotationMatrix(quat)
+
+    mat = np.matmul(mat, orig_mat)
+    
+    x, y, z = getRotationFromMatrix(mat, mode=3)
+    
+    return x, -y, -z
+    
+# expects x y z blender rotation, outputs tekken rotation
 def convertArmToTekkenXYZ(x, y, z):
     x, y, z = -x, -z, y
     

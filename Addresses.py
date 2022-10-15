@@ -1,6 +1,7 @@
 # Python 3.6.5
 
 import win32api, ctypes
+import ctypes
 import win32gui
 import win32process
 import win32con

@@ -1,5 +1,5 @@
 from . Addresses import AddressFile, GameClass
-from . TekkenAnimHelper import TekkenAnimation, getAnimFrameFromBones, getHandAnimFrameFromBones, applyRotationFromAnimdata, convertCameraToUnrealRot, convertCameraToBlenderRot, getFaceAnimFrameFromBones
+from . TekkenAnimHelper import TekkenAnimation, getAnimFrameFromBones, getHandAnimFrameFromBones, applyRotationFromAnimdata, convertCameraToUnrealRot, convertCameraToBlenderRot, getFaceAnimFrameFromBones, test
 from . characterFaces import getCharacterFacePos
 #from . VR import VRIntegrator
 from time import time, sleep
@@ -10,6 +10,7 @@ import struct
 from mathutils import Vector, Euler
 from math import pi
 import traceback
+import numpy as np
 
 class TKDirect: #(Singleton):
     def __init__(self, onStopFunc=None):
@@ -61,6 +62,11 @@ class TKDirect: #(Singleton):
         self.face_anim_2p_addr = None
         self.face_base_pose_2p = None
         
+        self.bone_target_test = 8
+        self.val1_test = 0
+        self.val2_test = 0
+        self.val3_test = 0
+        
     # -- #
         
     def start(self):
@@ -104,7 +110,7 @@ class TKDirect: #(Singleton):
                         self.trackPlayer(self.p1_addr, self.armature)
                     elif self.preview:
                         self.previewPlayer(self.p1_addr, self.armature, self.preview_frame_anim)
-                        self.T.writeBytes(self.allocated_frame_anim, bytes(self.preview_frame_anim.data))
+                        #self.T.writeBytes(self.allocated_frame_anim, bytes(self.preview_frame_anim.data))
                         
                         if self.preview_hand:
                             self.previewHand(self.p1_addr, self.armature, self.hand_anim, self.hand_anim_addr)
@@ -336,10 +342,168 @@ class TKDirect: #(Singleton):
         self.setPlayerFloorHeight(self.p2_addr, playerPos['z'])
         self.setPlayerPos(self.p2_addr, playerPos['x'], playerPos['y'])
         
+    def setBoneTarget(self, bone_target_test):
+        self.bone_target_test = bone_target_test
+        
+    def setVal(self, val, id):
+        if id == 1:
+            self.val1_test = val
+        elif id == 2:
+            self.val2_test = val
+        elif id == 3:
+            self.val3_test = val
         
     def previewPlayer(self, playerAddress, armature, preview_frame_anim):
         #self.VR.setIKFromVR(self.armature)
+
+        fieldLabels = {
+            0: 'Movement X',
+            1: 'Height',
+            2: 'Movement Z',
+            3: 'Pos X',
+            4: 'Pos Y (Height2)',
+            5: 'Pos Z',
+            6: 'Field 7',
+            7: 'Field 8',
+            8: 'Field 9',
+            9: 'Rot X',
+            10: 'Rot Y',
+            11: 'Rot Z',
+            12: 'Spine 1 X',
+            13: 'Spine 1 Y',
+            14: 'Spine 1 Z',
+            15: 'Hip X',
+            16: 'Hip Y',
+            17: 'Hip Z',
+            18: 'Spine 2',
+            19: 'Field 20',
+            20: 'Field 21',
+            21: 'Neck 22',
+            22: 'Neck 23',
+            23: 'Neck 24',
+            24: 'Neck 25',
+            25: 'Neck 26',
+            26: 'Neck 27',
+            27: 'Right Inner Shoulder X',
+            28: 'Right Inner Shoulder Y',
+            29: 'Right Inner Shoulder Z',
+            30: 'Right Outer Shoulder X',
+            31: 'Right Outer Shoulder Y',
+            32: 'Right Arm X',
+            33: 'Right Elbow X',
+            34: 'Right Elbow Y',
+            35: 'Right Elbow Z',
+            36: 'Right Hand 3',
+            37: 'Right Hand 4',
+            38: 'Right Hand 5',
+            39: 'Left Inner Shoulder X',
+            40: 'Left Inner Shoulder Y',
+            41: 'Left Inner Shoulder Z',
+            42: 'Left Outer Shoulder X',
+            43: 'Left Outer Shoulder Y',
+            44: 'Left Arm X',
+            45: 'Left Elbow X',
+            46: 'Left Elbow Y',
+            47: 'Left Elbow Z',
+            48: 'Left Hand 3',
+            49: 'Left Hand 4',
+            50: 'Left Hand 5',
+            51: 'Right Upleg',
+            52: 'Right Upleg',
+            53: 'Right Upleg',
+            54: 'Right Foot',
+            55: 'Right Upleg',
+            56: 'Right Leg',
+            57: 'Right Foot',
+            58: 'Right Foot',
+            59: 'Right Foot',
+            60: 'Left Upleg',
+            61: 'Left Upleg',
+            62: 'Left Upleg',
+            63: 'Left Foot',
+            64: 'Left Upleg',
+            65: 'Left Leg',
+            66: 'Left Foot',
+            67: 'Left Foot',
+            68: 'Left Foot'
+        }
     
+        animAddr = self.getPlayerAnimAddr(playerAddress)
+        if animAddr == None:
+            print("animAddr is none")
+            return
+    
+        type = self.T.readInt(animAddr, 1)
+        bone_count = self.T.readInt(animAddr + 2, 1)
+        
+        __unknown__ = self.T.readInt(animAddr + 4 + bone_count * 2 + 4, 2)
+        offset = animAddr + 4 + (bone_count * 2) + 6 + (4 * __unknown__)
+        
+        self.T.writeInt(animAddr + 2 * bone_count + 4, 1, 2) 
+        
+        if bone_count > 23: bone_count = 23
+        
+        mult = 65535 / (pi * 2) 
+        
+        source_bone="R_Shoulder"
+        target_bone_num = self.bone_target_test #Right Outer Shoulder
+        
+        rot_x, rot_y, rot_z = armature.pose.bones[source_bone].rotation_euler
+        
+        #val = list(test(rot_x, rot_y, rot_z, self.val1_test, self.val2_test, self.val3_test))
+        val = list((rot_x, rot_y, rot_z))
+        
+        """
+        if 0:
+            for i in range(bone_count):
+                bone_type = self.T.readInt(animAddr + 4 + i * 2, 2)
+                if bone_type - 4 < 4:
+                    if 9 <= i <= 11 : self.T.writeBytes(offset, bytes([0] * 6))
+                    offset += 0x6
+                else:
+                    offset += 0xC
+        """
+        
+        
+        
+        for i in range(bone_count):
+
+            bone_type = self.T.readInt(animAddr + 4 + i * 2, 2)
+            if bone_type - 4 < 4:
+                if i == target_bone_num:
+                    #print("Offset is only 2 bytes long - 0x%02x" % (animAddr - i))
+                    multval = [int(v * mult) for v in val]
+                    for j in range(3):
+                        while multval[j] < 0:
+                            multval[j] += 65535
+                        while multval[j] >= 65535:
+                            multval[j] -= 65535
+                        
+                    #bytes_val = [np.float16(v).tostring() for v in val]    
+                    #print(bytes_val)
+                    #self.T.writeBytes(offset, bytes_val[0])
+                    #self.T.writeBytes(offset + 2, bytes_val[1])
+                    #self.T.writeBytes(offset + 4, bytes_val[2])
+                    
+                    
+                    print(multval)
+                    self.T.writeInt(offset, multval[0], 2)
+                    self.T.writeInt(offset + 2, multval[1], 2)
+                    self.T.writeInt(offset + 4, multval[2], 2)
+                offset += 0x6
+            else:
+                if i == target_bone_num:
+                    #self.writeFloat(offset, val[0])
+                    #self.writeFloat(offset + 4 , val[1])
+                    #self.writeFloat(offset + 8, val[2])
+                    print("writing to %x" % (offset))
+                    pass
+                offset += 0xC
+        
+        #applyRotationFromAnimdata(armature, floats)
+ 
+        return
+        # aa
         animFrame = getAnimFrameFromBones(armature)
         
         for i in range(preview_frame_anim.field_count):
@@ -367,7 +531,6 @@ class TKDirect: #(Singleton):
             start_addr = animAddr + offset + frame_size * (frame - 1)
             return [self.readFloat(start_addr + i * 4) for i in range(min(field_count, 69))]
         else:
-
             __unknown__ = self.T.readInt(animAddr + 4 + bone_count * 2 + 4, 2)
             offset = animAddr + 4 + (bone_count * 2) + 6 + (4 * __unknown__)
             
@@ -525,6 +688,7 @@ class TKDirect: #(Singleton):
         self.T.writeBytes(self.allocated_frame_anim_2p, bytes(self.preview_frame_anim_2p.data))
 
     def writePlayerMove(self, playerid):
+        return #todo: remove
         if playerid == 0 and self.wrote_player_move: return
         if playerid == 1 and self.wrote_player_move_2p: return
         

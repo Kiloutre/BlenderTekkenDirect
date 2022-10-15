@@ -268,6 +268,12 @@ class TekkenPanel(bpy.types.Panel):
         l.operator(SetActiveCamera.bl_idname)
         
         
+        l.prop(context.scene, "bone_target_test")
+        l.prop(context.scene, "val1_test")
+        l.prop(context.scene, "val2_test")
+        l.prop(context.scene, "val3_test")
+        
+        
 # --- Registering --- #
 
 classes = [
@@ -295,6 +301,35 @@ def register():
         min = 0,
         max = 10,
         update = lambda s, c: TK.setPlayersStageCollision(s.stage_collision)
+    )
+    
+    bpy.types.Scene.bone_target_test = bpy.props.IntProperty(
+        name = "Bone target",
+        default = 8,
+        min = 0,
+        max = 24,
+        update = lambda s, c: TK.setBoneTarget(s.bone_target_test)
+    )
+    bpy.types.Scene.val1_test = bpy.props.FloatProperty(
+        name = "Mat 1",
+        default = 0,
+        min = -7,
+        max = 7,
+        update = lambda s, c: TK.setVal(s.val1_test, 1)
+    )
+    bpy.types.Scene.val2_test = bpy.props.FloatProperty(
+        name = "Mat 2",
+        default = 0,
+        min = -7,
+        max = 7,
+        update = lambda s, c: TK.setVal(s.val1_test, 2)
+    )
+    bpy.types.Scene.val3_test = bpy.props.FloatProperty(
+        name = "Mat 3",
+        default = 0,
+        min = -7,
+        max = 7,
+        update = lambda s, c: TK.setVal(s.val1_test, 3)
     )
         
     for c in classes:
