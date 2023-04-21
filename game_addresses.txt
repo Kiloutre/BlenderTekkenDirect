@@ -95,9 +95,9 @@ playerid_ptr                 = +0x34CE508, 0x0                # Used to find whe
 #Scan repeatedly value between 0 and 1 during loading to filter out the remaining garbage. Then pause the process (slow to 0.00); set all remaining variables to a fringe unique value (e.g. 216246545) and search for the following pointer path that leads to the fringe value
 
 # blender tools
-player_distance_limit_addr   = +0x6E6ABF
-player_collision_code_addr   = +0x6D89E5
-wall_collision_code_addr     = +0x796DA4                 #writes negative values on [player + 1308] to induce reverse movement
+player_distance_limit_addr   = +0x6E6ACF
+player_collision_code_addr   = +0x6D89F5
+wall_collision_code_addr     = +0x796DB4                 #writes negative values on [player + 1308] to induce reverse movement
 
 # -- Camera animator --
 game_speed_address         = +0x34DF51C                  # where we write our game speed. Easy to find by doing move that slow down time like heaven's gate, jin ZEN 2
